@@ -1,0 +1,61 @@
+{
+ "version": 1,
+ "settings": [
+  {
+   "key": "carplay_ultra",
+   "type": "toggle",
+   "default": true,
+   "title": "CarPlay Ultra",
+   "description": "The CarPlay theme (Aston Martin DBX look), its wallpapers and Themes page, and a climate panel per seat. Needs the E-GMP CarPlay EV Routing mod with its CarPlay theme on, and after turning it on: forget the car on the iPhone (Settings > General > CarPlay) and pair again. Off: CarPlay climate only, in the classic CarPlay layout; then also turn the EV Routing mod's CarPlay theme off, or CarPlay can stay black. Restart the head unit afterwards.",
+   "apply": "restart"
+  },
+  {
+   "key": "rear_defrost",
+   "type": "toggle",
+   "default": true,
+   "title": "Rear window defrost from CarPlay",
+   "description": "CarPlay's rear window button turns the car's rear defrost on and off (READY only) and shows its state. The state comes from a listener on the car's body controller, registered only if that listener is exactly the one this was checked against (Ioniq 6 CEEV 260507); otherwise the button works without showing the state. Turn it off if the head unit misbehaves. Restart the head unit afterwards.",
+   "apply": "restart"
+  },
+  {
+   "key": "vehicle_page",
+   "type": "toggle",
+   "default": true,
+   "title": "The car's page in CarPlay's Vehicle app",
+   "description": "CarPlay's Vehicle app shows the car's battery level, range and odometer (read from the car, nothing is sent to it), switches for the Light Vibes ambient light effect and for battery preconditioning (Launchpad sends the request, with its own checks and time limit), and buttons that open the head unit's own screens: the car's home screen, Light Vibes, HMG-API, NEMESIS Manager, radio, EV and vehicle settings. Off: the rows stay in the Vehicle app, because the phone is given them when CarPlay connects, but they show no readings and do nothing. Restart the head unit afterwards.",
+   "apply": "restart"
+  },
+  {
+   "key": "volume_link",
+   "type": "toggle",
+   "default": true,
+   "title": "Car volume in CarPlay",
+   "description": "CarPlay's Volume page (Vehicle app) shows the head unit's real volume for media, navigation, phone and Siri, follows the volume knob and the steering wheel buttons, and sets the car's volume when changed on the phone's side; its mute switch mutes the car's sound. Off: CarPlay's volume page shows placeholder values and does nothing. Restart the head unit afterwards.",
+   "apply": "restart"
+  },
+  {
+   "key": "carplay_volume_slider",
+   "type": "toggle",
+   "default": false,
+   "title": "Only CarPlay's volume slider in CarPlay (experiment)",
+   "description": "While CarPlay is on the screen, the volume knob and the steering wheel's volume buttons change the volume without the head unit's own volume pop-up, so only CarPlay's slider shows. Needs \"Car volume in CarPlay\" on. Everywhere else the volume works and looks as always. An experiment: it answers the volume keys inside the car's system software; if the volume keys ever misbehave, turn it off and restart. Restart the head unit afterwards.",
+   "apply": "restart"
+  },
+  {
+   "key": "adb_keepalive",
+   "type": "toggle",
+   "default": false,
+   "title": "Keep adb over USB through CarPlay (for testing)",
+   "description": "When CarPlay connects, the head unit's USB port stops answering adb. With this on, the mod's root service switches the port to host mode and back to adb about 12 seconds after each CarPlay connect, which is what turning the ADB mod's \"ADB over USB\" off and on does. Only the live setting is changed. Leave it off unless a computer is plugged in for adb: while the port is switched, a phone or USB stick on it is disconnected for a moment.",
+   "apply": "live"
+  },
+  {
+   "key": "drive_log",
+   "type": "toggle",
+   "default": false,
+   "title": "Drive log (for testing)",
+   "description": "While CarPlay is connected, reads more of the car's values every 5 seconds (speed, gear, range and consumption figures, window and parking brake states, tyre states) and writes them to a file on the head unit when they change, to work out what the car reports on the move. Reads only; nothing is sent to the car. The file stops growing at 4 MB. Restart the head unit afterwards.",
+   "apply": "restart"
+  }
+ ]
+}
