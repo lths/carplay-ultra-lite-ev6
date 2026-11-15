@@ -38,8 +38,8 @@ import java.util.concurrent.LinkedBlockingQueue;
  *   car reports conditioning (BCM getBattCondIndSta).
  */
 final class CarVehicle extends Thread implements VehiclePage.Listener {
-    static final String HSCAN = "tm_hscan_service", HSCAN_IFACE = "com.hkmc.telematics.hscan.tm_interface.ITM_HSCANService";
-    static final String HSCAN_JAR = "/system/framework/com.hkmc.ext.hcan.jar";
+    static final String HSCAN = CarApi.HSCAN_SERVICE, HSCAN_IFACE = CarApi.HSCAN;
+    static final String HSCAN_JAR = CarApi.HSCAN_JAR;
     static final String USM = "com.hkmc.micom.usm";
     static final long PERIOD_MS = 5000;
     static final String LIGHTS_REQUEST = "cpc-lights-req", LIGHTS_STATE = "cpc-lights-state";
@@ -358,16 +358,7 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
 
     /** the HSCAN calls by name; its interface isn't on the boot class path, so from its own jar */
     private void lookUp() {
-        ClassLoader cl = CarVehicle.class.getClassLoader();
-        try {
-            Class.forName(HSCAN_IFACE, false, cl);
-        } catch (Throwable notLoaded) {
-            try {
-                cl = new dalvik.system.PathClassLoader(HSCAN_JAR, cl);
-            } catch (Throwable t) {
-                out.log("VEH no HSCAN interface: " + t);
-            }
-        }
+        ClassLoader cl = CarApi.hscanLoader();
         int[] tx = hscanCalls(cl);
         txOdometer = tx[0];
         txRange = tx[1];
@@ -446,10 +437,7 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     }
 
     /** odometer, range, battery level, charging status, finish and time, then the four tyres; -1 for one not there */
-    static final String[][] HSCAN_CALLS = { { "getOdometer", "(B)F" }, { "ableDriveDistance", "(B)I" }, { "remainBatteryPercentage", "()F" },
-            { "getChargingStatus", "()I" }, { "getChargingFinish", "()I" }, { "getRemainChargingTime", "()I" },
-            { "getFrontLeftTirePressureStatus", "()B" }, { "getFrontRightTirePressureStatus", "()B" },
-            { "getRearLeftTirePressureStatus", "()B" }, { "getRearRightTirePressureStatus", "()B" } };
+    static final String[][] HSCAN_CALLS = CarApi.HSCAN_CALLS;
     static final int[] HSCAN_IONIQ6 = { 1, 73, 74, 86, 83, 150, 176, 177, 178, 179 };
 
     static int[] hscanCalls(ClassLoader cl) {

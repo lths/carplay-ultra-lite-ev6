@@ -51,6 +51,8 @@ final class CarClimate extends Thread implements VehicleState.Car {
     /** the listeners are answered by hand, so only when they are exactly the ones this was written for */
     static final boolean datcListenerOk = CarApi.DATC_LISTENER_PRINT.equals(CarApi.fingerprint(CarApi.DATC_LISTENER));
     static final boolean bcmListenerOk = CarApi.BCM_LISTENER_PRINT.equals(CarApi.fingerprint(CarApi.BCM_LISTENER));
+    static final List<String> climateFlagMismatches = CarApi.climateFlagMismatches();
+    static final boolean climateFlagsOk = climateFlagMismatches.isEmpty();
 
     final VehicleState[] state;
     final VsChannel[] lanes;
@@ -191,6 +193,9 @@ final class CarClimate extends Thread implements VehicleState.Car {
     /** sends a command; false if nothing needed sending */
     boolean send(ClimateMap.Command c) throws Exception {
         if (c.kind == ClimateMap.REAR) return pressRear(c.a);
+        if ((c.kind == ClimateMap.VR || c.kind == ClimateMap.FRONT)
+                && (!climateFlagsOk || (unit != ClimateMap.CELSIUS && unit != ClimateMap.FAHRENHEIT)))
+            throw new IllegalStateException("climate command withheld: flag layout or temperature unit is not verified");
         int code = c.kind == ClimateMap.SEAT
                 ? (c.a == ClimateMap.SET_DRIVER_SEAT ? txSetDriverSeat : c.a == ClimateMap.SET_PASSENGER_SEAT ? txSetPassengerSeat : -1)
                 : c.kind == ClimateMap.VR ? txSetStatus : txSetFront;
@@ -269,6 +274,7 @@ final class CarClimate extends Thread implements VehicleState.Car {
     @Override
     public void run() {
         out.log("CAR reader and sender started; " + calls());
+        if (!climateFlagsOk) out.log("CAR DATC controls disabled: " + climateFlagMismatches);
         startSender();
         String last = null;
         while (true) {
@@ -306,17 +312,21 @@ final class CarClimate extends Thread implements VehicleState.Car {
         }
         return s.append(same ? " (as the Ioniq 6's)" : " (NOT the Ioniq 6's numbers)")
                 .append("; DATC listener ").append(datcListenerOk ? "verified" : "differs, not registered")
-                .append(", BCM listener ").append(bcmListenerOk ? "verified" : "differs, not registered").toString();
+                .append(", BCM listener ").append(bcmListenerOk ? "verified" : "differs, not registered")
+                .append("; climate flags ").append(climateFlagsOk ? "verified" : "differ, DATC disabled").toString();
     }
 
     ClimateMap.Reading read() throws Exception {
-        if (txGetStatus < 0) return null;   // no climate status call on this firmware: nothing to show
+        if (txGetStatus < 0 || !climateFlagsOk) return null;
         if (datc == null) {
             datc = service(DATC);
             if (datc == null) return null;
             if (datcListenerOk && txRegisterDatc >= 0) register(datc);
         }
         ClimateMap.Reading r = new ClimateMap.Reading();
+        r.unit = unit = temperatureUnit();
+        if (unit != ClimateMap.CELSIUS && unit != ClimateMap.FAHRENHEIT)
+            throw new IllegalStateException("unrecognized temperature unit " + unit);
         r.on = status(F_ON);
         r.auto = status(F_AUTO);
         r.ac = status(F_AC);
@@ -327,7 +337,6 @@ final class CarClimate extends Thread implements VehicleState.Car {
         r.driverF = status(F_DRIVER_F);
         r.passengerRaw = status(F_PASSENGER_RAW);
         r.sync = status(F_SYNC);
-        r.unit = unit = temperatureUnit();
         r.driverOnly = driverOnly();
         r.driverC = temps.driverC;
         r.driverState = temps.driverState;

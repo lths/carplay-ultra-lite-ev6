@@ -18,7 +18,7 @@ import java.util.Map;
 public class MkVspi {
     @SuppressWarnings("unchecked")
     public static void main(String[] a) {
-        String model = a.length > 0 ? a[0] : "Ioniq 6";
+        String model = a.length > 0 ? a[0] : "EV6";
         VehiclePage.tiles = "off";
         VehiclePage page = CarVehicle.describe(new VehiclePage(), model, null, true);
         Map<String, Object> v = new LinkedHashMap<String, Object>();

@@ -25,11 +25,82 @@ public final class CarApi {
     public static final String DATC = "com.hkmc.datc.IDATCService", DATC_LISTENER = "com.hkmc.datc.IDATCListener";
     public static final String USM = "com.hkmc.usm.IUSMService", VR = "com.hkmc.vr.IVRService";
     public static final String BCM = "com.hkmc.bcm.IBCMService", BCM_LISTENER = "com.hkmc.bcm.IBCMListener";
+    public static final String AUDIO = "com.hkmc.media.IMicomAudioService", AUDIO_SERVICE = "com.hkmc.micom.audiosetup";
+    public static final String HSCAN = "com.hkmc.telematics.hscan.tm_interface.ITM_HSCANService";
+    public static final String HSCAN_JAR = "/system/framework/com.hkmc.ext.hcan.jar", HSCAN_SERVICE = "tm_hscan_service";
+
+    /** Shared by the runtime and checker. Transaction numbers can move; these flag meanings must not. */
+    public static final String[][] CLIMATE_FLAGS = {
+            { "com.hkmc.datc.DATCFlag", "TEMP", "2" }, { "com.hkmc.datc.DATCFlag", "BLOWER_LEVEL", "5" },
+            { "com.hkmc.datc.DATCFlag", "BLOWER_MODE", "6" }, { "com.hkmc.datc.DATCFlag", "AUTO", "8" },
+            { "com.hkmc.datc.DATCFlag", "AC", "9" }, { "com.hkmc.datc.DATCFlag", "FRONT_DEFOG", "10" },
+            { "com.hkmc.datc.DATCFlag", "INTAKE", "11" }, { "com.hkmc.datc.DATCFlag", "OP_STATE", "12" },
+            { "com.hkmc.datc.DATCFlag", "SYNC", "22" }, { "com.hkmc.datc.DATCFlag", "TEMP_PS_C", "29" },
+            { "com.hkmc.datc.DATCFlag$DATCControl", "DRIVER_ONLY", "24" },
+            { "com.hkmc.datc.DATCFlag$DATCControl", "TEMP_DR_C", "28" },
+            { "com.hkmc.datc.DATCFlag$DATCControl", "TEMP_PS_C", "29" },
+            { "com.hkmc.datc.DATCFlag$DATCControl", "TEMP_PS_F", "31" }
+    };
+
+    /** Vehicle-page getters, in CarVehicle's order; none is a setter or registers a callback. */
+    public static final String[][] HSCAN_CALLS = {
+            { "getOdometer", "(B)F" }, { "ableDriveDistance", "(B)I" }, { "remainBatteryPercentage", "()F" },
+            { "getChargingStatus", "()I" }, { "getChargingFinish", "()I" }, { "getRemainChargingTime", "()I" },
+            { "getFrontLeftTirePressureStatus", "()B" }, { "getFrontRightTirePressureStatus", "()B" },
+            { "getRearLeftTirePressureStatus", "()B" }, { "getRearRightTirePressureStatus", "()B" }
+    };
+
+    /** Volume link, followed by the two optional volume-key experiment calls. */
+    public static final String[][] AUDIO_CALLS = {
+            { "getVolume", "(II)I" }, { "setVolume", "(III)V" }, { "muteAV", "()V" }, { "unMuteAV", "()V" },
+            { "getUserMuteState", "()Z" }, { "getCurStreamType", "()I" },
+            { "adjustsuggestedStreamVolume", "(IIII)V" }, { "hideVolumeDisplay", "(Z)V" }
+    };
     /** the Ioniq 6 (CEEV USA 260507) listeners' fingerprints: 7 calls, and 55 with byte[] out at 37 and 39 */
     public static final String DATC_LISTENER_PRINT = "8a834814775381cc8a77646c06710f8483a5b4b0bb309d49bc2c742719781d0c";
     public static final String BCM_LISTENER_PRINT = "b5a76b60550eed8c576003be0018d2cc00cd893b1d71d5872d4e53a966f4b861";
 
     private CarApi() {
+    }
+
+    public static boolean ev6Target(String product) {
+        return product != null && product.startsWith("CVEV.USA.") && product.endsWith(".260507");
+    }
+
+    /** No unchecked climate selector is sent when a firmware changes or omits a flag. */
+    public static List<String> climateFlagMismatches() {
+        return climateFlagMismatches(CarApi.class.getClassLoader());
+    }
+
+    public static List<String> climateFlagMismatches(ClassLoader loader) {
+        List<String> bad = new ArrayList<String>();
+        for (String[] f : CLIMATE_FLAGS) {
+            Integer value = null;
+            try {
+                value = Class.forName(f[0], false, loader).getField(f[1]).getInt(null);
+            } catch (Throwable unavailable) {
+                // Missing or differently typed constants are incompatible, just like changed values.
+            }
+            if (value == null || value != Integer.parseInt(f[2]))
+                bad.add(f[0] + "." + f[1] + "=" + value + " (expected " + f[2] + ")");
+        }
+        return bad;
+    }
+
+    /** HSCAN is outside the boot class path. Reflection also lets the checker compile without Android. */
+    public static ClassLoader hscanLoader() {
+        ClassLoader loader = CarApi.class.getClassLoader();
+        try {
+            Class.forName(HSCAN, false, loader);
+            return loader;
+        } catch (Throwable outsideBootPath) {
+            try {
+                return (ClassLoader) Class.forName("dalvik.system.PathClassLoader")
+                        .getConstructor(String.class, ClassLoader.class).newInstance(HSCAN_JAR, loader);
+            } catch (Throwable unavailable) {
+                return loader; // code() then reports missing calls; no guessed transaction numbers.
+            }
+        }
     }
 
     /** the transaction code of iface.method if the method exists with exactly this descriptor, else -1 */

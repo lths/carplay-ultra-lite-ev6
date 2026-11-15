@@ -1,0 +1,19 @@
+{
+  "hmgapi_sdk": {
+    "version": "1.1.0-rc.1",
+    "url": "https://github.com/Open-HMG/HMG-API/releases/download/v1.1.0-rc.1/hmgapi-mod-sdk-1.1.0-rc.1.zip",
+    "sha256": "a256b1a13b75637a7b4eec149b2dd3aa40c3743944ea63cc1b1998b9a5daf643"
+  },
+  "d8": {
+    "version": "8.3.37",
+    "url": "https://storage.googleapis.com/r8-releases/raw/8.3.37/r8.jar",
+    "sha256": "900dfbc649519969fc5a4c7520d6b7355338e565fa1249874e0190b8d61b1199"
+  },
+  "android_compile_stubs": {
+    "version": "Android SDK API 19 revision 4",
+    "url": "https://dl.google.com/android/repository/android-19_r04.zip",
+    "archive_sha256": "5efc3a3a682c1d49128daddb6716c433edf16e63349f32959b6207524ac04039",
+    "jar_path": "android-4.4.2/android.jar",
+    "jar_sha256": "4032a201eeb1d0430c7d9f1075151dd280427de5ca9e36f734f464ab605cb690"
+  }
+}

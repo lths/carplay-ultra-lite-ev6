@@ -29,7 +29,7 @@ import ioniq6.cpclimate.CarApi;
  * Everything is compared with the car it was written and tested on: Ioniq 6 (CEEV) USA firmware 260507.
  */
 public final class Main {
-    static final String VERSION = "1.0 (CarPlay Ultra-Lite 1.0.0, egmp-carplay-ev-routing 0.4.3-ioniq6.15)";
+    static final String VERSION = "1.1.0-ev6.1 (CarPlay Ultra-Lite 1.3.3-ev6.1)";
     static final String REFERENCE = "Ioniq 6 (CEEV) USA 260507";
 
     static final class Check {
@@ -112,7 +112,8 @@ public final class Main {
                 parcel.getMethod("writeInterfaceToken", String.class).invoke(data, iface);
                 for (int a : args) parcel.getMethod("writeInt", int.class).invoke(data, a);
                 Class<?> ib = Class.forName("android.os.IBinder");
-                ib.getMethod("transact", int.class, parcel, parcel, int.class).invoke(binder, code, data, rep, 0);
+                Object accepted = ib.getMethod("transact", int.class, parcel, parcel, int.class).invoke(binder, code, data, rep, 0);
+                if (!Boolean.TRUE.equals(accepted)) return "error: transaction not accepted";
                 parcel.getMethod("readException").invoke(rep);
                 Object v = parcel.getMethod("float".equals(reply) ? "readFloat" : "readInt").invoke(rep);
                 return String.valueOf(v);
@@ -123,14 +124,6 @@ public final class Main {
         } catch (Throwable t) {
             Throwable c = t.getCause() != null ? t.getCause() : t;
             return "error: " + c.getClass().getSimpleName() + (c.getMessage() != null ? " " + c.getMessage() : "");
-        }
-    }
-
-    static Integer constant(String cls, String field) {
-        try {
-            return Class.forName(cls).getField(field).getInt(null);
-        } catch (Throwable t) {
-            return null;
         }
     }
 
@@ -146,16 +139,19 @@ public final class Main {
         String[] p = product.split("\\.");
         String model = p.length > 0 ? p[0] : "", region = p.length > 1 ? p[1] : "", fw = p.length > 0 ? p[p.length - 1] : "";
         boolean same = "CEEV".equals(model) && "USA".equals(region) && "260507".equals(fw);
+        boolean ev6 = CarApi.ev6Target(product);
+        facts.put("EV6 port target", String.valueOf(ev6));
         // E-GMP units HMG-API has data for (its maps and wireless-carplay-aa stock lists): the same CarPlay library
         // (libCarPlayCore.so d3a47296…) as the Ioniq 6; their car framework (automotive.odex) differs.
         boolean known = ("CVEV".equals(model) || "NEEV".equals(model) || "NEEV23".equals(model))
-                && (("USA".equals(region) && ("260507".equals(fw) || "260903".equals(fw))) || ("CAN".equals(region) && "260206".equals(fw)));
+                && (("USA".equals(region) && "260507".equals(fw)) || ("CAN".equals(region) && "260206".equals(fw)));
         String names = "CVEV".equals(model) ? "Kia EV6" : "NEEV".equals(model) || "NEEV23".equals(model) ? "Hyundai Ioniq 5" : "CEEV".equals(model) ? "Hyundai Ioniq 6" : "unknown model";
         facts.put("model", names);
-        add("System", "Head unit model, region and firmware", same ? "PASS" : "WARN", product + " (" + names + ")", "CEEV.USA.….260507",
+        add("System", "Head unit model, region and firmware", same ? "PASS" : "WARN", product + " (" + names + ")", "CVEV.USA.….260507 (EV6 port); CEEV.USA.….260507 (reference)",
                 same ? "The car these mods were built and tested on."
-                        : known ? "Not tested on this car, but HMG-API's data shows the same CarPlay library as the Ioniq 6's; its car framework differs, so the call, listener and flag checks below decide. cp-climate's mod.json doesn't list it: HMG-API asks before installing ('Install anyway')."
-                        : "Not tested, and unknown to this check. cp-climate and the routing mod don't list it, so HMG-API asks before installing ('Install anyway'); the checks below decide whether it can work.");
+                        : ev6 ? "The private EV6 port lists this exact model, region and firmware. Published CarPlay bytes match the reference; vehicle control behavior is not yet tested. The checks below still decide."
+                        : known ? "Published stock data includes this configuration; the libraries, calls, listener and flag checks below still decide. This private fork targets only EV6 USA 260507."
+                        : "Outside this port's target. Do not bypass a library, flag or method mismatch by adding a model to mod.json.");
         boolean egmp = "NEEV23".equals(model) || "CVEV".equals(model) || "NEEV".equals(model) || "CEEV".equals(model);
         add("System", "E-GMP model (routing mod)", egmp ? "PASS" : "WARN", model, "NEEV23, CVEV, NEEV or CEEV",
                 egmp ? "The routing mod (EV routing and the CarPlay theme identification) has a profile for this model." : "The routing mod is for E-GMP EVs; on this model its EV parts don't apply and the theme identification would have to be split out.");
@@ -218,7 +214,7 @@ public final class Main {
         String model = prop("ro.build.product").split("\\.")[0];
         boolean root = android_uid() == 0;
         String[][] mods = {
-                { "cp-climate", "CarPlay Ultra-Lite", "1.0.0" },
+                { "cp-climate", "CarPlay Ultra-Lite", "1.3.3-ev6.1" },
                 { "egmp-carplay-ev-routing", "EV routing in Apple Maps + the CarPlay theme identification", "0.4.3-ioniq6.15" },
                 { "wireless-carplay-aa", "wireless CarPlay / Android Auto", "2.1.0-ioniq6.1 (Ioniq 6) or HMG-API's official 2.1.0 (EV6, Ioniq 5)" },
         };
@@ -231,11 +227,16 @@ public final class Main {
             facts.put("installed " + m[0], mj == null ? "no" : version + (uuid != null ? " (author key " + uuid + ")" : ""));
             String name = "Installed " + m[0] + " (" + m[1] + ")";
             if (mj == null) {
-                add("Mods", name, "INFO", "not installed", m[2], "The bundle installs it.");
+                add("Mods", name, "INFO", "not installed", m[2], "Review compatibility before installing this dependency or the private EV6 mod.");
                 continue;
             }
             boolean ours = BUNDLE_UUID.equalsIgnoreCase(uuid);
             boolean other = uuid != null && !ours;
+            if ("cp-climate".equals(m[0])) {
+                add("Mods", name, "INFO", version + (uuid != null ? ", author key " + uuid : ""), m[2],
+                        "The EV6 fork uses its own signing key. HMG-API requires an update to have the same author key as the installed mod; an upstream cp-climate install cannot be replaced in place by a privately signed build.");
+                continue;
+            }
             if ("wireless-carplay-aa".equals(m[0])) {
                 add("Mods", name, listsCar ? "PASS" : "FAIL", version + (uuid != null ? ", author key " + uuid : ""), m[2],
                         listsCar ? "This build supports this car; keep it (on an EV6 or Ioniq 5 the official one is fine)."
@@ -272,13 +273,14 @@ public final class Main {
     }
 
     void files() {
+        boolean ev6 = CarApi.ev6Target(prop("ro.build.product"));
         file("CarPlay (DiPO)", "/system/lib/libCarPlayCore.so", "d3a47296437df56fb1ffc7ac3dfca4cb", "FAIL",
                 "cp-climate's native patch (the climate data streams, the virtual cluster, the theme's display names) is checked against these exact bytes. With another build it doesn't apply and CarPlay shows no climate: send this file so a recipe can be made for it.");
-        file("CarPlay (DiPO)", "/system/app/HKMC_DiPO.apk", "ae4ca93c8ecc0a371d1481ed7f607d63", "WARN",
+        file("CarPlay (DiPO)", "/system/app/HKMC_DiPO.apk", ev6 ? "01446fb79dc4fcfc826271ba18158fa4" : "ae4ca93c8ecc0a371d1481ed7f607d63", "WARN",
                 "cp-climate's Java part hooks DiPO through HMG-API's hook map (dipo.carplay.*); another DiPO build is fine if the map covers it, but untested."
                         + " Known builds: EV6 USA 260507 01446fb7…, Ioniq 5 USA 260507 1b080aa1….");
-        file("Car framework", "/system/framework/automotive.odex", "173334b2461f4dc5afe1545b9be0f390", "INFO",
-                "Identical: every car call and listener is exactly the tested one. Different (the EV6 USA 260507 has efbfceed…): the call, listener and flag checks below decide.");
+        file("Car framework", "/system/framework/automotive.odex", ev6 ? "efbfceed274a0b58d092e89aeaa8c66e" : "173334b2461f4dc5afe1545b9be0f390", "INFO",
+                "Compared with the published EV6 stock map on the EV6 target, otherwise the Ioniq 6 reference. Matching a file does not replace the method, listener or flag checks below.");
         file("Themes (routing mod)", "/system/lib/libiap2session.so", "fc7cb675b46a44bd893a1edc054c5e71", "FAIL",
                 "The routing mod's native recipe (identification extension, incl. the CarPlay theme parameters) is checked against these bytes. Another build: no theme, and the routing mod's own EV features need the same port. Send this file.");
         file("Themes (routing mod)", "/system/lib/libiap2client.so", "153a97fd6d2c62dc58286aa47c35feb3", "INFO",
@@ -321,25 +323,69 @@ public final class Main {
         add("Car framework", "IBCMListener fingerprint", CarApi.BCM_LISTENER_PRINT.equals(bcm) ? "PASS" : "WARN", String.valueOf(bcm), CarApi.BCM_LISTENER_PRINT,
                 CarApi.BCM_LISTENER_PRINT.equals(bcm) ? "cp-climate registers its body listener for the rear defroster's state." : "Differs: cp-climate won't register it (a listener answering a call wrongly can crash system_server). The rear window button still works, without showing the car's state.");
         // the climate flag numbers cp-climate sends and reads (DATCFlag for getVRClimateStatus/setVRClimateStatus, DATCControl for setFrontClimateControl)
-        String[][] flags = {
-                { "com.hkmc.datc.DATCFlag", "TEMP", "2" }, { "com.hkmc.datc.DATCFlag", "BLOWER_LEVEL", "5" },
-                { "com.hkmc.datc.DATCFlag", "BLOWER_MODE", "6" }, { "com.hkmc.datc.DATCFlag", "AUTO", "8" },
-                { "com.hkmc.datc.DATCFlag", "AC", "9" }, { "com.hkmc.datc.DATCFlag", "FRONT_DEFOG", "10" },
-                { "com.hkmc.datc.DATCFlag", "INTAKE", "11" }, { "com.hkmc.datc.DATCFlag", "OP_STATE", "12" },
-                { "com.hkmc.datc.DATCFlag", "SYNC", "22" }, { "com.hkmc.datc.DATCFlag", "TEMP_PS_C", "29" },
-                { "com.hkmc.datc.DATCFlag$DATCControl", "DRIVER_ONLY", "24" }, { "com.hkmc.datc.DATCFlag$DATCControl", "TEMP_DR_C", "28" },
-                { "com.hkmc.datc.DATCFlag$DATCControl", "TEMP_PS_C", "29" }, { "com.hkmc.datc.DATCFlag$DATCControl", "TEMP_PS_F", "31" },
-        };
-        StringBuilder bad = new StringBuilder();
-        int same = 0;
-        for (String[] f : flags) {
-            Integer v = constant(f[0], f[1]);
-            if (v != null && v == Integer.parseInt(f[2])) same++;
-            else bad.append(bad.length() > 0 ? ", " : "").append(f[1]).append('=').append(v == null ? "missing" : String.valueOf(v));
+        List<String> bad = CarApi.climateFlagMismatches();
+        int count = CarApi.CLIMATE_FLAGS.length;
+        add("Car framework", "Climate flag numbers (DATCFlag, DATCControl)", bad.isEmpty() ? "PASS" : "FAIL",
+                (count - bad.size()) + "/" + count + " match" + (bad.isEmpty() ? "" : "; " + bad), count + "/" + count,
+                bad.isEmpty() ? null : "The fork withholds DATC reads and commands when any flag differs. Resolve this mismatch before testing climate controls.");
+    }
+
+    /** 1.3.3 added these features after the original checker. Check setters by signature; never call them. */
+    void vehicleAndAudio() {
+        ClassLoader hscan = CarApi.hscanLoader();
+        for (String[] c : CarApi.HSCAN_CALLS) {
+            int code = CarApi.code(hscan, CarApi.HSCAN, c[0], c[1]);
+            add("Vehicle page", c[0] + c[1], code < 0 ? "WARN" : "PASS", String.valueOf(code), "method with matching signature",
+                    code < 0 ? "Unavailable: the associated reading is omitted. Charging and tyre readings are logged only." : "Resolved by name; transaction order may differ from the reference car.");
         }
-        add("Car framework", "Climate flag numbers (DATCFlag, DATCControl)", same == flags.length ? "PASS" : "FAIL",
-                same + "/" + flags.length + " as the Ioniq 6" + (bad.length() > 0 ? "; differ: " + bad : ""), flags.length + "/" + flags.length,
-                same == flags.length ? null : "cp-climate uses these numbers as on the Ioniq 6; different ones would read and set the wrong things. Needs a code change before installing.");
+        int units = CarApi.code(CarApi.USM, "getDistanceSpeedUnit", "()I");
+        add("Vehicle page", "getDistanceSpeedUnit()I", units < 0 ? "WARN" : "PASS", String.valueOf(units), "method with matching signature",
+                "Confirm miles/km against the car; a missing getter leaves the runtime's fallback unit unverified.");
+        Object hs = service(CarApi.HSCAN_SERVICE);
+        facts.put("service " + CarApi.HSCAN_SERVICE, hs == null ? "missing" : "present");
+        String[] names = { "odometer", "range", "battery" };
+        for (int i = 0; i < names.length; i++) {
+            String[] c = CarApi.HSCAN_CALLS[i];
+            int code = CarApi.code(hscan, CarApi.HSCAN, c[0], c[1]);
+            String value = i == 2 ? call(hs, CarApi.HSCAN, code, "float")
+                    : call(hs, CarApi.HSCAN, code, i == 0 ? "float" : "int", 0);
+            facts.put("live " + names[i], String.valueOf(value));
+            add("Vehicle page", "Live " + names[i], readable(value) ? "PASS" : "WARN", String.valueOf(value), "readable value",
+                    "Read only. Compare the value, units and rounding with the EV6's own display.");
+        }
+        for (String[] c : CarApi.AUDIO_CALLS) {
+            int code = CarApi.code(CarApi.AUDIO, c[0], c[1]);
+            add("Volume", c[0] + c[1], code < 0 ? "WARN" : "PASS", String.valueOf(code), "method with matching signature",
+                    "Signature check only; no volume, mute or key command is sent. The volume-key experiment stays off by default.");
+        }
+        Object audio = service(CarApi.AUDIO_SERVICE);
+        facts.put("service " + CarApi.AUDIO_SERVICE, audio == null ? "missing" : "present");
+        int get = CarApi.code(CarApi.AUDIO, "getVolume", "(II)I");
+        StringBuilder levels = new StringBuilder();
+        boolean ok = audio != null && get >= 0;
+        for (int stream : new int[] { 14, 13, 11, 12 }) {
+            String value = call(audio, CarApi.AUDIO, get, "int", stream, 0);
+            levels.append(stream).append('=').append(value).append(' ');
+            try {
+                int n = Integer.parseInt(value);
+                if (n < 0 || n > 45) ok = false;
+            } catch (Exception invalid) {
+                ok = false;
+            }
+        }
+        facts.put("audio stream levels", levels.toString());
+        add("Volume", "Live volume levels", ok ? "PASS" : "WARN", levels.toString(), "streams 14/13/11/12, levels 0..45",
+                "Read only. Stream assignments and maximum 45 come from the Ioniq 6; a successful read alone does not validate the EV6's scale or routing.");
+    }
+
+    static boolean readable(String value) {
+        if (value == null || value.startsWith("error")) return false;
+        try {
+            float n = Float.parseFloat(value);
+            return !Float.isNaN(n) && !Float.isInfinite(n) && n >= 0;
+        } catch (Exception invalid) {
+            return false;
+        }
     }
 
     void live() {
@@ -352,13 +398,16 @@ public final class Main {
         int[][] flags = { { 12, 0 }, { 8, 0 }, { 9, 0 }, { 10, 0 }, { 11, 0 }, { 5, 0 }, { 6, 0 }, { 2, 0 }, { 29, 0 }, { 22, 0 } };
         String[] names = { "on (1 on, 2 off)", "AUTO", "A/C", "front defrost", "intake (1 recirc, 2 fresh)", "fan raw (0 off, 2-9)", "vent mode", "driver set temp", "passenger raw ((°C-14)*2)", "SYNC" };
         StringBuilder s = new StringBuilder();
-        boolean ok = datc != null && get >= 0;
+        boolean flagLayout = pass("Car framework", "Climate flag numbers (DATCFlag, DATCControl)");
+        boolean ok = datc != null && get >= 0 && flagLayout;
         for (int i = 0; i < flags.length; i++) {
-            String v = call(datc, CarApi.DATC, get, "float", flags[i][0]);
+            String v = flagLayout ? call(datc, CarApi.DATC, get, "float", flags[i][0]) : "skipped: flag layout differs";
             if (v == null || v.startsWith("error")) ok = false;
             s.append(names[i]).append(' ').append(v).append("; ");
         }
         String unit = call(datc, CarApi.DATC, CarApi.code(CarApi.DATC, "getTemperatureUnit", "()I"), "int");
+        add("Live climate", "Temperature unit", "1".equals(unit) || "2".equals(unit) ? "PASS" : "FAIL", String.valueOf(unit), "1 (C) or 2 (F)",
+                "The runtime withholds DATC commands until it has read a recognized temperature unit.");
         String only = call(datc, CarApi.DATC, CarApi.code(CarApi.DATC, "getDriverOnlyValue", "()I"), "int");
         String type = call(datc, CarApi.DATC, CarApi.code(CarApi.DATC, "getClimateType", "()I"), "int");
         s.append("unit ").append(unit).append(" (1 °C, 2 °F); driver only ").append(only).append("; climate type ").append(type);
@@ -382,20 +431,30 @@ public final class Main {
         boolean read = pass("Car framework", "IDATCService.getVRClimateStatus(I)F");
         boolean set = pass("Car framework", "IDATCService.setVRClimateStatus(III)V");
         boolean front = pass("Car framework", "IDATCService.setFrontClimateControl(II)V");
-        v.add(verdict("CarPlay climate (dock temperatures, Climate app)", nativeOk && read && set && flags,
-                !nativeOk ? "cp-climate's native patch doesn't fit this CarPlay library" : !flags ? "the climate flag numbers differ" : "climate calls missing"));
-        v.add(verdict("Driver Only (passenger power button) and passenger temperature", nativeOk && front && flags && pass("Car framework", "IDATCService.getDriverOnlyValue()I"), "needs setFrontClimateControl and getDriverOnlyValue"));
+        boolean liveClimate = pass("Live climate", "Read-only climate readings") && pass("Live climate", "Temperature unit");
+        v.add(verdict("CarPlay climate (dock temperatures, Climate app)", nativeOk && read && set && flags && liveClimate,
+                !nativeOk ? "cp-climate's native patch doesn't fit this CarPlay library" : !flags ? "the climate flag numbers differ" : !liveClimate ? "live readings or temperature unit unavailable" : "climate calls missing"));
+        v.add(verdict("Driver Only (passenger power button) and passenger temperature", nativeOk && front && flags && liveClimate && pass("Car framework", "IDATCService.getDriverOnlyValue()I"), "needs verified climate reads/units, setFrontClimateControl and getDriverOnlyValue"));
         boolean seat = pass("Car framework", "IUSMService.setFrontSeatHeatDrvStep(I)V") && pass("Car framework", "IUSMService.setFrontSeatHeatAstStep(I)V")
                 && pass("Car framework", "IUSMService.getFrontSeatHeat_DrvState()I") && pass("Car framework", "IUSMService.getFrontSeatHeat_AstState()I");
-        v.add(verdict("Seat heat", nativeOk && seat, "seat heat calls missing or CarPlay climate not possible"));
-        v.add(verdict("Front defrost", nativeOk && set && flags, "needs setVRClimateStatus and the FRONT_DEFOG flag"));
+        v.add(verdict("Seat heat", nativeOk && seat && flags && liveClimate, "seat heat calls missing or CarPlay climate reads/units unavailable"));
+        v.add(verdict("Front defrost", nativeOk && set && flags && liveClimate, "needs verified climate reads/units, setVRClimateStatus and the FRONT_DEFOG flag"));
         boolean rear = pass("Car framework", "IVRService.set_RrDefogger_Cmd_AVN(I)V");
         boolean rearState = rear && pass("Car framework", "IBCMListener fingerprint") && pass("Car framework", "IBCMService.registerBCMListener(Lcom/hkmc/bcm/IBCMListener;Landroid/os/IBinder;)V");
-        v.add(new String[] { "Rear defrost (READY only)", !(nativeOk && rear) ? "NO" : rearState ? "YES" : "PARTLY",
-                !(nativeOk && rear) ? "no rear defrost command on this firmware" : rearState ? "" : "works, but without showing the car's state (listener differs)" });
+        boolean rearAvailable = nativeOk && rear && flags && liveClimate;
+        v.add(new String[] { "Rear defrost (READY only)", !rearAvailable ? "NO" : rearState ? "YES" : "PARTLY",
+                !rearAvailable ? "rear defrost method or climate reads/units unavailable" : rearState ? "" : "command available; state unavailable because the listener differs" });
         boolean theme = pass("Themes (routing mod)", "/system/lib/libiap2session.so") && pass("System", "E-GMP model (routing mod)");
         v.add(verdict("CarPlay theme, wallpapers and the per-seat climate panels", nativeOk && theme,
                 !theme ? "the routing mod's identification recipe doesn't fit this unit's iAP2 library (or not an E-GMP model)" : "CarPlay climate not possible"));
+        boolean vehicle = pass("Vehicle page", "getOdometer(B)F") && pass("Vehicle page", "ableDriveDistance(B)I")
+                && pass("Vehicle page", "remainBatteryPercentage()F") && pass("Vehicle page", "getDistanceSpeedUnit()I")
+                && pass("Vehicle page", "Live odometer") && pass("Vehicle page", "Live range") && pass("Vehicle page", "Live battery");
+        v.add(verdict("Vehicle page battery, range and odometer", nativeOk && vehicle, "vehicle getters, units or live readings unavailable"));
+        boolean volume = pass("Volume", "getVolume(II)I") && pass("Volume", "setVolume(III)V")
+                && pass("Volume", "muteAV()V") && pass("Volume", "unMuteAV()V") && pass("Volume", "getUserMuteState()Z")
+                && pass("Volume", "getCurStreamType()I") && pass("Volume", "Live volume levels");
+        v.add(verdict("Volume link interfaces and read access", nativeOk && volume, "volume methods or live levels unavailable; leave volume link off"));
         return v;
     }
 
@@ -408,7 +467,8 @@ public final class Main {
         m.append("# CarPlay Ultra-Lite compatibility report\n\n");
         m.append("Made ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date())).append(" on ").append(facts.get("ro.build.product"))
                 .append(" by cp-climate-check ").append(VERSION).append(". Reference car: ").append(REFERENCE)
-                .append(". The check only reads; it changes nothing on the unit.\n\n");
+                .append(". The checker sends no vehicle-control commands; it only reads and writes these report files.\n\n")
+                .append("YES means the required interfaces and reads passed, not that control behavior, calibration or theme downloads have been tested on this car.\n\n");
         m.append("## Will it work on this car?\n\n| Feature | Works | Why not |\n|---|---|---|\n");
         for (String[] v : verdicts()) m.append("| ").append(v[0]).append(" | ").append(v[1]).append(" | ").append(v[2]).append(" |\n");
         int fails = 0, warns = 0;
@@ -416,7 +476,7 @@ public final class Main {
             if ("FAIL".equals(c.result)) fails++;
             if ("WARN".equals(c.result)) warns++;
         }
-        m.append("\n").append(fails == 0 && warns == 0 ? "Everything matches the reference car: the bundle should work as it is.\n"
+        m.append("\n").append(fails == 0 && warns == 0 ? "The checks passed. Controlled on-car validation is still required.\n"
                 : fails + " FAIL, " + warns + " WARN. See what each means below. Don't install until the FAIL items are dealt with.\n");
         m.append("\n## Checks\n\n| Result | Area | Check | Found | Reference car | What it means |\n|---|---|---|---|---|---|\n");
         for (Check c : checks)
@@ -430,7 +490,7 @@ public final class Main {
                 .append("/system/framework/automotive.odex.\n\n");
         m.append("For Claude: cp-climate (GPL-3.0, source in the bundle's source/ folder) patches DiPO's libCarPlayCore.so with one HMG-API ")
                 .append("recipe (tools/build.py builds it from the stock library and checks its placement with tests/RecipePlaceTest.java; the hook ")
-                .append("sites are documented in native/hooks.c and HANDOFF.md), and its Java part looks the car's binder calls up by name ")
+                .append("sites are documented in native/hooks.c), and its Java part looks the car's binder calls up by name ")
                 .append("(CarApi.java). Listener fingerprints come from tools/listener_fingerprint.py on baksmali output of automotive.odex. The ")
                 .append("theme identification is in the routing mod's src/native/identity.c with recipes/native-fc7.recipe for libiap2session.so. ")
                 .append("Never register a listener whose fingerprint differs without checking every call that writes a reply.\n");
@@ -454,7 +514,8 @@ public final class Main {
         i = 0;
         for (Check c : checks)
             j.append(i++ > 0 ? "," : "").append("\n    {\"result\": \"").append(c.result).append("\", \"area\": \"").append(q(c.area)).append("\", \"check\": \"").append(q(c.name))
-                    .append("\", \"found\": \"").append(q(c.found)).append("\", \"expected\": \"").append(q(c.expected)).append("\"}");
+                    .append("\", \"found\": \"").append(q(c.found)).append("\", \"expected\": \"").append(q(c.expected))
+                    .append("\", \"meaning\": \"").append(q(c.meaning)).append("\"}");
         return j.append("\n  ]\n}\n").toString();
     }
 
@@ -486,6 +547,7 @@ public final class Main {
         m.files();
         m.framework();
         m.live();
+        m.vehicleAndAudio();
         String md = m.markdown();
         write(new File(out, "cp-climate-check.md"), md);
         write(new File(out, "cp-climate-check.json"), m.json());

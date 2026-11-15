@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.class
+.cache/
+.keys/
+out/
+artifacts/
+check/cp-climate-check.jar
+check/report/

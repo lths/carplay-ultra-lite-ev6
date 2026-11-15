@@ -26,7 +26,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * Every call is found by name and descriptor; a firmware without one leaves that part out.
  */
 final class CarAudio extends Thread {
-    static final String SERVICE = "com.hkmc.micom.audiosetup", IFACE = "com.hkmc.media.IMicomAudioService";
+    static final String SERVICE = CarApi.AUDIO_SERVICE, IFACE = CarApi.AUDIO;
     static final long PERIOD_MS = 200;
     /** the head unit's volume steps (MicomAudioService logs "MaxVolume : 45") */
     static final int MAX_LEVEL = 45;
