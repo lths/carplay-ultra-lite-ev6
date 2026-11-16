@@ -41,16 +41,47 @@ is indicated by the visible results. The original checks and runtime guards stay
 The summary does not expose every WARN/INFO row. In particular, it does not establish the DATC temperature
 listener fingerprint, existing-mod author identities, actual temperature values, unit calibration or audio stream routing.
 
-## Next validation
+## Functional testing of ev6.1, reported through 2026-11-16
 
-Use the install bundle described in [INSTALL-EV6.md](INSTALL-EV6.md). It includes the private EV6 mod and the
-original signed theme-enabled routing dependency. Keep the existing official wireless CarPlay installation.
+The owner reports iOS 27.2, visible Themes, and working driver/passenger temperature, fan and SYNC commands.
+Kia's own controls can turn the seat heaters off. The new build has not yet been run on this vehicle.
 
-Still to verify in a CarPlay session:
+| Observation | Evidence and interpretation | ev6.2 action |
+|---|---|---|
+| Seat heat sticks at maximum | Repeated `passengerSeatHeatingLevel to 3` / `seat(214, 8)`; live seats `-1/-1`. The USM getter supplies no valid feedback. | Prefer BCM getters; preserve USM fallback only for valid states. Coalesce OFF/level conflicts and withhold commands without fresh valid feedback. |
+| Range/odometer labels wrong or blank | Raw log: SOC 60.5–61%, range 189–190 km, odometer 92222.7 km, unit mi. Runtime rows were conditional, while the native description contained every row. | Keep a complete schema and pin legacy IDs; rebuild native description from the runtime schema. |
+| Car-home shortcut refused | `VS phone may not write value 20579`; other shortcuts map to `open_hmgapi`. | Same stable-ID correction. |
+| Recirculation turns on but not off | True → `vr(11, 1, 0)`; false → `vr(11, 2, 0)`; observed intake later stays 1. False is decoded correctly. | Mapping unchanged pending Kia touchscreen command trace. Do not invent another OFF value. |
+| Steering-wheel heat / ventilation absent | Original source had no controls for these features. | Add guarded Vehicle-page Comfort controls using documented methods and seat enums. Hardware behavior still unverified. |
+| DAB unavailable, no FM choice | Upstream Radio backend has no station-list/tuning implementation. | Correct IDs for the Kia Radio shortcut. Integrated FM remains unimplemented. |
+| Center image freezes, returns after Kia menu round trip | The discarded cluster stream continues; this alone does not identify the fault. | Lower discarded cluster's advertised fps from 30 to 5 and observe decoder/frame/timeout events. Mitigation unproven. |
+| Themes do not change the driver's gauges | Separate cluster video is consumed by `ClusterSink`. | No claim of physical cluster integration. |
 
-- Theme download, pairing, startup, display and reconnect behavior.
-- Temperature/fan/AUTO/Driver Only, seat heat and defrost commands, plus matching feedback from the car.
-- Displayed battery, range and odometer against the vehicle's own display.
-- Volume and mute behavior, including navigation, Siri and phone audio.
+The previous checker accepted `-1` seat values and did not require a valid live seat state in its seat verdict.
+Its initial YES for seat heat was therefore too broad. Version `1.1.0-ev6.2` corrects that logic.
 
-This record does not claim a completed functional vehicle test or validated Apple Maps energy/charging calibration.
+## Charging API leads
+
+The owner supplied names for EVSE/mains/OBC display power, battery energy sum, SOC, remaining charge time,
+charging status/type, and change callbacks. This build inventories matching HSCAN/HEV signatures by reflection
+and logs them once. It does not invoke new methods or register a listener.
+
+Units, invalid/sentinel values, AC/DC differences, enum meanings and listener ABI still require verification.
+In particular, [HMG-API's EV6 map](https://github.com/Open-HMG/HMG-API/blob/main/maps/kia/ev6/usa/260507/framework.json)
+identifies `getBatSoc()` as **12 V battery SOC**. It is not substituted for the working traction-battery percent.
+
+## Host validation of ev6.2
+
+- Native hook behavior, climate mapping, session pairing, firmware mismatch guards, Vehicle-page updates/actions,
+  and audio/notice host tests pass. Full mod and checker sources compile for Java 8 / Android API 19.
+- Regression checks cover BCM preference, invalid feedback, ventilation clearing heat, OFF versus stale levels,
+  fixed legacy IDs, and an exact match between the generated native description and runtime page.
+- ARM32 segment links without undefined symbols or relocations, contains the current binary plist, and preserves
+  every original stock verify/patch directive, branch site and all 33 library bindings.
+- HMG SDK accepts all nine declared hooks at the new minimum version, 1.1.0-rc.1. The three video hooks also
+  appear in the published EV6 USA 260507 map. Head-unit script command checks pass.
+- USB export test verifies paths containing spaces, filtering of unrelated/handshake logs and retention of useful logs.
+
+These are host results. Native placement against a freshly retrieved OEM library, on-car control behavior,
+freeze recovery, audio routing and Apple Maps energy/charging calibration have not been validated for ev6.2.
+Follow [INSTALL-EV6.md](INSTALL-EV6.md) for the next test and diagnostic capture.

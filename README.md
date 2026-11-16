@@ -1,103 +1,97 @@
-# CarPlay Ultra-Lite for Kia EV6
+# CarPlay Ultra-Lite for EV6
 
-Private development copy for a **2024 Kia EV6 with Gen5W USA firmware 260507**, based on
-[SafariForest/CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
-Version **1.3.3-ev6.1** is an experimental port. **The owner's on-car diagnostic returned YES for all eight feature groups;
-the first functional CarPlay/control test is next.** The detailed report files were not retrieved; the owner asked to proceed from the service log.
-The owner's wireless CarPlay already works through HMG-API. Requires an iPhone on iOS 26 or later.
+Private development copy for a **2024 Kia EV6, Gen5W USA firmware 260507**. Current test version:
+**1.3.3-ev6.2**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
+Requires working wireless CarPlay, **HMG-API 1.1.0-rc.1 or later**, and the existing theme-enabled routing dependency.
+The owner uses iOS 27.2. This build has passed host checks and has **not yet been tested on the car**.
 
-GitHub requires native forks of public repositories to remain public. This private repository retains the
-upstream Git history and an `upstream` remote, with the released 1.3.3 sources imported in a separate commit.
-[UPSTREAM.md](UPSTREAM.md) preserves the original project documentation.
+GitHub's public-repository forks remain public, so this is an independent private repository retaining
+upstream history and an `upstream` remote. [UPSTREAM.md](UPSTREAM.md) preserves the original documentation.
 
-## What changed for EV6
+## Changes in ev6.2
 
-- Lists **CVEV / USA / 260507** explicitly and declares `wireless-carplay-aa` as a dependency.
-- Changes the Vehicle app's embedded model label to **EV6**. The existing recipe's native instructions,
-  offsets and plist length are preserved; `tools/set_vehicle_model.py` reproduces the metadata edit.
-- Checks the climate flag definitions in the car's framework before reading or sending DATC selectors.
-  Changed or missing flags disable those operations. A recognized temperature unit is required before commands.
-- Keeps method lookup by name and exact signature, and retains the original listener fingerprint checks.
-  No EV6 transaction numbers or listener fingerprints have been guessed.
-- Extends the checker to inspect the HSCAN battery/range/odometer getters, distance unit, volume methods
-  and live read access. It never invokes a setter or registers a vehicle listener.
+- Fix the Vehicle page's identities: optional apps no longer shift battery/range/odometer or shortcut IDs.
+  The connect-time native description and runtime page are generated from the same Java schema and checked together.
+- Prefer BCM seat feedback. The owner's previous USM reads returned `-1/-1`, leaving CarPlay without seat-state updates.
+  Conflicting heat-level and OFF writes now resolve to one OFF command. Unknown or stale seat feedback withholds commands.
+- Add **Vehicle → Comfort**: wheel heat, seat status, ventilation low/medium/high and seat-off buttons.
+  Ventilation requires reported option 6 and valid feedback; wheel commands require a checked method and recognized
+  state from the existing, fingerprint-verified BCM listener. These additions still need functional testing.
+- Add bounded, passive stock-touchscreen climate tracing and decoder-event logging. Filtered diagnostics can export to USB.
+- Request 5 fps for the discarded virtual cluster, reducing its advertised workload. This is an unverified freeze mitigation;
+  the center display's frame rate is unchanged. No automatic decoder-recovery loop has been added.
+- Correct the checker: `-1` seat readings no longer pass. Inventory the owner's charging-method leads by signature only.
+  No new charging listener is registered and no unverified power/time reading is displayed.
 
-The published EV6 USA 260507 stock list has the same `libCarPlayCore.so` MD5 targeted by the existing recipe:
-`d3a47296437df56fb1ffc7ac3dfca4cb`. HMG-API's EV6 map contains all six requested Java hook points.
-Evidence: [stock checksums](https://github.com/Open-HMG/hmgapi-wireless-cp-aa/blob/fa672126f1fa2c37f457534fa6a476ad3b8a24b5/wireless-carplay-aa/patches/ev6/stock),
-[EV6 map](https://github.com/Open-HMG/HMG-API/tree/e15dadcccd4dbebac2cc62557c0a8c0aacb184a4/maps/kia/ev6/usa/260507).
-The owner's diagnostic now also establishes the required interface and read-access checks on the actual unit.
-This does not establish command behavior, audio stream assignments or battery-model calibration on this car.
-See [the validation record](docs/EV6-VALIDATION.md).
+The target remains **CVEV / USA / 260507**. Climate flag, method-signature, stock-library and listener checks remain enabled.
+The rebuilt native segment retains every original stock verify/patch directive and all 33 library bindings for
+`libCarPlayCore.so` MD5 `d3a47296437df56fb1ffc7ac3dfca4cb`; no manufacturer binary is included.
 
-## First CarPlay test
+## Install and test
 
-The installation release supplies `carplay-ultra-lite-ev6-1.3.3-ev6.1-install-usb.zip` with both signed packages:
-the private EV6 mod and the original theme-enabled routing dependency. It retains the existing wireless mod.
-Follow [the EV6 installation steps](docs/INSTALL-EV6.md). The runtime code and compatibility guards have not been relaxed.
+For the existing installation, use **`cp-climate-1.3.3-ev6.2-usb.zip`** from the private release.
+Keep the existing wireless and theme-enabled routing mods. See [installation and test steps](docs/INSTALL-EV6.md).
+The complete `carplay-ultra-lite-ev6-1.3.3-ev6.2-install-usb.zip` also carries the unchanged signed routing dependency
+and its source for an installation that needs it. The checker USB ZIP is optional for this car.
 
-## Compatibility check, for a new unit
+The owner's evidence and unresolved issues are recorded in [EV6-VALIDATION.md](docs/EV6-VALIDATION.md).
+The original eight YES results established interface compatibility; they did not prove working controls.
+The old checker also accepted invalid seat-state values, which is corrected here.
 
-Use this repository's `ev6-carplay-check-1.1.0-ev6.1-usb.zip` from its private release.
+## Current limits
 
-1. Unzip it and copy `HMGAPI` to the root of a USB stick.
-2. In HMG-API, open Updates, install **EV6 CarPlay Ultra-Lite compatibility check**, apply, and restart if requested.
-3. About a minute after startup, the USB stick receives `CarPlayUltraLite-Check/cp-climate-check.md` and `.json`.
-4. Return both reports when available. The owner's all-YES service log has already been accepted for this unit's first CarPlay test.
+- Recirculation OFF is still unresolved: the phone correctly sends false, and the mod sends `vr(11, 2, 0)`,
+  but the observed intake state stays on. Capture Kia touchscreen ON/OFF commands before changing that mapping.
+- CarPlay's integrated Radio backend is unimplemented; the DAB message does not establish a tuner fault.
+  **Vehicle → Head unit → Radio** opens Kia's own radio, where FM can be selected. Shortcut IDs are fixed in this build;
+  integrated FM tuning has not been added.
+- Visual freezing needs on-car diagnosis. A running discarded cluster stream does not prove the center video is healthy.
+- Themes do not replace the EV6 driver's instrument display; `ClusterSink` discards the separate Ultra cluster video.
+- Charging-method names do not establish units or callbacks. HMG-API's EV6 map identifies `getBatSoc()` as **12 V SOC**;
+  retain the working `remainBatteryPercentage()` traction-battery reading. Charging/energy calibration in Apple Maps
+  remains the separate routing mod's responsibility.
+- Audio streams 14/13/11/12, maximum volume 45, and Launchpad preconditioning retain upstream assumptions.
+  Volume-key interception, ADB keepalive and drive logging remain off by default.
+- Missing optional apps keep their rows to preserve the schema; their shortcuts have no action.
 
-The checker has its own ID, `ev6-carplay-check`, and this fork's signing key, so it can coexist with the
-upstream checker. The public author key is in [signing/author.pub](signing/author.pub); the private key stays
-outside this repository. The report writes files but sends no climate, seat, defrost, volume or preconditioning commands.
-The expected author UUID is `51951394-274a-8d4b-8396-c831913a9a44`.
-`YES` means the required signatures and read access were found; actual controls still require validation.
+Primary interface references: [HMG vehicle commands](https://github.com/Open-HMG/HMG-API/blob/main/docs/vehicle-commands.md),
+[EV6 framework map](https://github.com/Open-HMG/HMG-API/blob/main/maps/kia/ev6/usa/260507/framework.json),
+[EV6 DiPO map](https://github.com/Open-HMG/HMG-API/blob/main/maps/kia/ev6/usa/260507/dipo.json).
 
-ADB is an alternative after building: `sh check/check.sh`, or `sh check/check.sh --root 'su -c'` if needed.
+## Build
 
-## Dependencies and limits
-
-- Keep the official wireless CarPlay mod already working on this EV6. The Ioniq 6 wireless fix is unnecessary.
-- Ultra themes require the **modified E-GMP CarPlay EV Routing 0.4.3-ioniq6.15** supplied in the original
-  [1.0.0 bundle](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.0.0), under
-  `usb-2-install-ev6-ioniq5`. The unmodified routing release does not supply this theme handshake.
-- The routing mod must match `libiap2session.so` MD5 `fc7cb675b46a44bd893a1edc054c5e71`; the checker verifies it.
-  The theme and Ultra settings must agree. The iPhone must forget and re-pair the car for theme changes.
-- The source retains the Ioniq 6's climate encodings, three seat-heating levels, audio streams 14/13/11/12,
-  maximum volume 45, and preconditioning integrations. Validate them on the EV6 before treating them as supported.
-- Battery/range/odometer readings are live getters. Apple Maps consumption and charging profiles belong to the
-  separate routing dependency and have not been calibrated here for the owner's trim, battery or drivetrain.
-- The instrument-cluster video stream is discarded by `ClusterSink`; this does not put Ultra gauges on the driver display.
-- Volume-key interception, USB ADB keepalive and drive logging remain off by default.
-- Fork packages use a different author key from upstream. HMG-API cannot update an upstream `cp-climate`
-  install in place with this fork. Resolve author-key conflicts only after reviewing the compatibility report.
-
-## Build and test
-
-Fast host checks need Python 3.9+, JDK 11 or later, and clang:
-
-```sh
-python3 tools/test.py
-```
-
-Full compilation additionally takes an Android `android.jar` and the HMG-API mod SDK:
+Fast host checks need Python 3.9+, JDK 11+ and clang. Full checks compile against Android API 19 and the HMG SDK:
 
 ```sh
 python3 tools/test.py --android-jar /path/to/android.jar --sdk /path/to/hmgapi-sdk
-python3 tools/package.py check --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
-python3 tools/package.py mod --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
-python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.1.zip --sdk /path/to/hmgapi-sdk
 ```
 
-The packager emits signed mod ZIPs and USB wrappers in `out/check` or `out/mod`. It creates the author key at
-`~/.config/carplay-ultra-lite-ev6/author.key` on the first build; retain it for updates. Only the public key belongs in Git.
-The checker is also copied to `check/cp-climate-check.jar` for the ADB runner. Builds target Android API 19 and DEX 035.
-Tool versions and download checksums used for this port are recorded in [tools/toolchain.json](tools/toolchain.json).
+After changing page rows or version, regenerate the description and native segment before testing/packaging:
 
-No manufacturer binaries or private reports belong in Git. Rebuilding native instructions for a different library
-still requires that unit's stock library and the original `tools/build.py` workflow.
+```sh
+python3 tools/build_description.py --android-jar /path/to/android.jar --sdk /path/to/hmgapi-sdk
+python3 tools/rebuild_segment.py --zig /path/to/zig
+python3 tools/test.py --android-jar /path/to/android.jar --sdk /path/to/hmgapi-sdk
+python3 tools/package.py mod --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
+python3 tools/package.py check --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
+python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.2.zip --sdk /path/to/hmgapi-sdk
+```
+
+`rebuild_segment.py` needs clang, Zig's linker and pyelftools. It reuses pinned stock bindings and guards;
+it cannot port another stock library. That still requires its stock file and the original `tools/build.py` workflow.
+Tool versions and checksums are in [tools/toolchain.json](tools/toolchain.json).
+
+Packages target DEX 035 / API 19 and use the persistent author key at
+`~/.config/carplay-ultra-lite-ev6/author.key`. Only [the public key](signing/author.pub) belongs in Git.
+Expected author UUID: `51951394-274a-8d4b-8396-c831913a9a44`. Updates must retain that key.
+The separate checker, `ev6-carplay-check` version `1.1.0-ev6.2`, sends no commands or listener registrations.
+It exports to the included `CarPlayUltraLite-Check` folder; ADB alternative: `sh check/check.sh`.
+
+No manufacturer binaries or private diagnostic files belong in Git.
 
 ## Attribution
 
-Based on LIVI by Lasse Heitgres (https://github.com/f-io/LIVI).
+Based on [LIVI by Lasse Heitgres](https://github.com/f-io/LIVI).
 CarPlay Ultra-Lite and this fork are GPL-3.0-or-later; retain [LICENSE](LICENSE), [NOTICE](NOTICE),
-[mod/NOTICE.md](mod/NOTICE.md), and the source-data notices. Upstream source archive SHA-256:
+[mod/NOTICE.md](mod/NOTICE.md) and the source-data notices. Upstream source archive SHA-256:
 `ea679ecf94764d71b550704d0d69fce8cf0a0f16dd94b554b9bd8d7c4f5e2f45`.

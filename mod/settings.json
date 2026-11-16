@@ -56,6 +56,14 @@
    "title": "Drive log (for testing)",
    "description": "While CarPlay is connected, reads more of the car's values every 5 seconds (speed, gear, range and consumption figures, window and parking brake states, tyre states) and writes them to a file on the head unit when they change, to work out what the car reports on the move. Reads only; nothing is sent to the car. The file stops growing at 4 MB. Restart the head unit afterwards.",
    "apply": "restart"
+  },
+  {
+   "key": "trace_stock_climate",
+   "type": "toggle",
+   "default": true,
+   "title": "Log Kia touchscreen climate commands",
+   "description": "Diagnostic: observes the stock Kia climate and seat-command calls and logs their integer arguments. Does not change or send commands. Helps compare recirculation and seat controls with CarPlay. Turn off and restart to stop tracing.",
+   "apply": "restart"
   }
  ]
 }

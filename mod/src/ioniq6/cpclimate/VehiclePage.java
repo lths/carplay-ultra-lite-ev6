@@ -77,6 +77,7 @@ final class VehiclePage {
     /** a section's shown name, when it isn't its id (the car's own section shows the car's name) */
     private final Map<String, String> sectionNames = new LinkedHashMap<String, String>();
     private final Map<String, String> tileSymbols = new LinkedHashMap<String, String>();
+    private final Map<String, Long> sectionIids = new LinkedHashMap<String, Long>();
     private final List<Item> items = new ArrayList<Item>();
     /** the latest value of every line and switch, by item id: a new session starts from them */
     private final Map<String, Object> current = new LinkedHashMap<String, Object>();
@@ -104,6 +105,19 @@ final class VehiclePage {
 
     VehiclePage button(String section, String id, String label, String symbol) {
         return add(new Item(BUTTON, id, label, symbol, section), READY);
+    }
+
+    /** The native connect-time description and configResponse must use identical identities. */
+    VehiclePage pinSection(String section, long iid) {
+        sectionIids.put(section, iid);
+        return this;
+    }
+
+    VehiclePage pinItem(String id, long iid) {
+        Item it = item(id);
+        if (it == null) throw new IllegalArgumentException("missing page item " + id);
+        it.iid = iid;
+        return this;
     }
 
     private VehiclePage add(Item item, Object value) {
@@ -151,11 +165,17 @@ final class VehiclePage {
         for (Object a : (List<Object>) list) {
             if (!(a instanceof Map) || !Long.valueOf(ACCESSORY).equals(OpackCodec.asLong(((Map<Object, Object>) a).get("iid")))) continue;
             List<Object> services = new ArrayList<Object>();
-            for (int i = 0; i < sections.size(); i++) services.add(section(BASE + (long) STEP * i, sections.get(i), i, values));
+            for (int i = 0; i < sections.size(); i++) {
+                String id = sections.get(i);
+                long iid = sectionIids.containsKey(id) ? sectionIids.get(id) : BASE + (long) STEP * i;
+                services.add(section(iid, id, i, values));
+            }
             String mode = tiles;
             if (!"off".equals(mode)) {
-                for (int i = 0; i < sections.size(); i++)
-                    services.add(tile(BASE + (long) STEP * (sections.size() + i), sections.get(i), i, "array".equals(mode), values));
+                for (int i = 0; i < sections.size(); i++) {
+                    long iid = sectionIids.isEmpty() ? BASE + (long) STEP * (sections.size() + i) : BASE + 0x2000L + STEP * i;
+                    services.add(tile(iid, sections.get(i), i, "array".equals(mode), values));
+                }
             }
             for (int i = 0; i < items.size(); i++) {
                 Item it = items.get(i);

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Host checks without manufacturer files. Optional --android-jar and --sdk compile every Java source."""
 import argparse
+import json
 import os
+import plistlib
 import subprocess
 import tempfile
 from pathlib import Path
@@ -25,6 +27,7 @@ def main():
     parser.add_argument("--android-jar", type=Path)
     parser.add_argument("--sdk", type=Path)
     args = parser.parse_args()
+    run("Filtered USB log export", ["python3", ROOT / "tests/log_export_test.py"])
     with tempfile.TemporaryDirectory(prefix="ev6-tests-") as temporary:
         work = Path(temporary)
         native = work / "native-test"
@@ -70,11 +73,23 @@ def main():
             full.mkdir()
             sdk = args.sdk.resolve() / "lib"
             cp = os.pathsep.join(str(p.resolve()) for p in (args.android_jar, sdk / "hmgapi-runtime.jar", sdk / "hmgapi-runtime-stubs.jar"))
-            extra = [ROOT / "tests/VehiclePageTest.java", ROOT / "tests/AudioNoticeTest.java"]
+            extra = [ROOT / "tests/VehiclePageTest.java", ROOT / "tests/AudioNoticeTest.java", ROOT / "tools/MkVspi.java"]
             run("Compile all mod sources", ["javac", "--release", "8", "-cp", cp, "-d", full, *SRC.glob("*.java"), *extra])
             runtime = str(full) + os.pathsep + cp
             run("Vehicle page", ["java", "-cp", runtime, "ioniq6.cpclimate.VehiclePageTest"])
             run("Audio and notices", ["java", "-cp", runtime, "ioniq6.cpclimate.AudioNoticeTest"])
+            generated = subprocess.run(["java", "-cp", runtime, "ioniq6.cpclimate.MkVspi", "EV6"],
+                    cwd=ROOT, text=True, capture_output=True, check=True, timeout=60)
+            blob = (ROOT / "data/vspi.bplist").read_bytes()
+            description = plistlib.loads(blob)
+            baked = [a["services"] for cfg in description["pluginConfigs"] for a in cfg["accessories"] if a["iid"] == 1280]
+            if baked != [json.loads(generated.stdout)]:
+                raise SystemExit("native Vehicle page differs from runtime; run tools/build_description.py and rebuild the native segment")
+            recipe = (ROOT / "mod/recipes/carplay-climate-m1.recipe").read_text()
+            segments = [bytes.fromhex(line.split()[2]) for line in recipe.splitlines() if line.startswith("segment ")]
+            if len(segments) != 1 or segments[0].count(blob) != 1:
+                raise SystemExit("native recipe does not contain the current Vehicle page exactly once; rebuild the native segment")
+            print("Native/runtime Vehicle page and embedded recipe: PASS", flush=True)
         else:
             print("Full Android compilation skipped (provide --android-jar and --sdk)")
 

@@ -92,6 +92,12 @@ def main():
         updates = usb / "HMGAPI/updates"
         updates.mkdir(parents=True)
         shutil.copy2(mod_zip, updates / mod_zip.name)
+        for folder in metadata.get("usb", []):
+            export = usb / folder
+            export.mkdir(parents=True)
+            (export / "README.txt").write_text("Keep this folder at the USB stick root for the mod's diagnostic exports.\n")
+        if args.kind == "mod":
+            shutil.copy2(ROOT / "docs/INSTALL-EV6.md", usb / "README.md")
         usb_zip = output / (name + "-usb.zip")
         archive(usb, usb_zip)
         shutil.copy2(public, output / "author.pub")

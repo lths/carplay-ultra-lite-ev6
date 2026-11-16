@@ -101,8 +101,16 @@ public class ClimateMapTest {
         v = ClimateMap.toCarPlay(r);
         check("seat heat: driver high (3, on), passenger off", Long.valueOf(3).equals(v.get(ClimateMap.DRIVER_SEAT_LEVEL)) && Boolean.TRUE.equals(v.get(ClimateMap.DRIVER_SEAT_ON))
                 && Long.valueOf(0).equals(v.get(ClimateMap.PASSENGER_SEAT_LEVEL)) && Boolean.FALSE.equals(v.get(ClimateMap.PASSENGER_SEAT_ON)));
-        r.driverSeat = 5;
+        r.driverSeat = 0;
         check("an unknown seat state is left out", !ClimateMap.toCarPlay(r).containsKey(ClimateMap.DRIVER_SEAT_LEVEL));
+        r.driverSeat = 5;
+        check("ventilation clears a previously active seat-heating indicator",
+                Long.valueOf(0).equals(ClimateMap.toCarPlay(r).get(ClimateMap.DRIVER_SEAT_LEVEL))
+                && Boolean.FALSE.equals(ClimateMap.toCarPlay(r).get(ClimateMap.DRIVER_SEAT_ON)));
+        check("real BCM feedback is used when USM reports -1, including off and ventilation",
+                ClimateMap.seatFeedback(8, -1) == 8 && ClimateMap.seatFeedback(2, -1) == 2
+                && ClimateMap.seatFeedback(4, -1) == 4 && ClimateMap.seatFeedback(-1, 7) == 7
+                && ClimateMap.seatFeedback(-1, -1) == -1);
         check("nothing read: nothing told", ClimateMap.toCarPlay(new ClimateMap.Reading()).isEmpty());
 
         // write side: the commands tested on the car
@@ -137,6 +145,14 @@ public class ClimateMapTest {
                 && cmds(one(ClimateMap.DRIVER_SEAT_LEVEL, 0L), now).equals("[seat(213, 2)]"));
         check("seat on (level 0) is low; off is 2", cmds(one(ClimateMap.DRIVER_SEAT_ON, true), now).equals("[seat(213, 6)]")
                 && cmds(one(ClimateMap.PASSENGER_SEAT_ON, false), now).equals("[seat(214, 2)]"));
+        Map<Long, Object> combined = new java.util.LinkedHashMap<Long, Object>();
+        combined.put(ClimateMap.PASSENGER_SEAT_ON, false);
+        combined.put(ClimateMap.PASSENGER_SEAT_LEVEL, 3L);
+        check("an OFF plus stale level 3 sends only OFF", cmds(combined, now).equals("[seat(214, 2)]"));
+        combined.clear();
+        combined.put(ClimateMap.PASSENGER_SEAT_LEVEL, 3L);
+        combined.put(ClimateMap.PASSENGER_SEAT_ON, false);
+        check("seat OFF wins independently of incoming map order", cmds(combined, now).equals("[seat(214, 2)]"));
         check("MAX A/C on: A/C, recirculation, fan 8", cmds(one(ClimateMap.MAX_AC, true), now).equals("[vr(9, 1, 0), vr(11, 1, 0), vr(5, 9, 0)]"));
         check("°C car: driver 22.5 °C by the stock screen's call (raw 17), passenger 21.0 (raw 14)",
                 ClimateMap.commands(one(ClimateMap.DRIVER_TARGET, 22.5), now, 1).toString().equals("[front(28, 17)]")

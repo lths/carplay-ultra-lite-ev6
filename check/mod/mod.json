@@ -1,7 +1,7 @@
 {
   "id": "ev6-carplay-check",
   "name": "EV6 CarPlay Ultra-Lite compatibility check",
-  "version": "1.1.0-ev6.1",
+  "version": "1.1.0-ev6.2",
   "hmgapi": ">=1.0.0",
   "authors": [
     "cp-climate contributors"

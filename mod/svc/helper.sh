@@ -9,7 +9,8 @@
 # - adb over USB after a CarPlay connect (setting adb_keepalive, a test aid): DiPO leaves cpc-adb-req at each
 #   CarPlay session; 12 s later the port's live mode goes to host and back to adb, as the ADB mod's "ADB over
 #   USB" switch does when turned off and on (sys.usb.config; the saved persist. copy is not touched).
-# It writes one file of Light Vibes, that one property, and nothing of the car.
+# - filtered climate/video diagnostics copied to the registered USB log folder every ten seconds.
+# It writes one file of Light Vibes, that one property, and the diagnostic files; no vehicle commands.
 DIPO=/data/data/com.daudio.app.dipo/files
 REQ=$DIPO/cpc-lights-req
 STATE=$DIPO/cpc-lights-state
@@ -57,6 +58,7 @@ usbtoggle() {
 
 last=
 lastp=
+logtick=0
 while true; do
     lv=$(settings)
     if [ -f $REQ ]; then
@@ -92,5 +94,9 @@ while true; do
         echo "launchpad request $p"
         lastp=$p
     fi
+    if [ "$logtick" = 0 ]; then
+        sh "$HMGAPI_MOD_DIR/svc/export-log.sh"
+    fi
+    logtick=$(((logtick + 1) % 10))
     sleep 1
 done

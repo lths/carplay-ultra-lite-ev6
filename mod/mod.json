@@ -1,13 +1,13 @@
 {
   "id": "cp-climate",
   "name": "CarPlay Ultra-Lite",
-  "version": "1.3.3-ev6.1",
-  "hmgapi": ">=1.0.0",
+  "version": "1.3.3-ev6.2",
+  "hmgapi": ">=1.1.0-rc.1",
   "authors": [
     "cp-climate contributors"
   ],
   "license": "GPL-3.0-or-later",
-  "description": "Experimental EV6 USA 260507 port; vehicle control behavior awaits the compatibility report. CarPlay Ultra features on a Gen5W head unit's own screen, for wireless CarPlay with iOS 26 or later: the car's climate in CarPlay both ways (dock temperatures, Apple's Climate app, a panel per seat with power buttons, Driver Only, seat heat, front and rear defrost), the car's page in CarPlay's Vehicle app (battery, range, odometer, switches for the ambient light effect and for battery preconditioning through Launchpad, buttons that open the head unit's own screens), and with the E-GMP CarPlay EV Routing mod's theme on, the CarPlay Ultra theme with its wallpapers and Themes page. DiPO's CarPlay receiver is patched in memory (libCarPlayCore.so, one recipe); the vehicle state streams use ports 7130-7135 on the hotspot. Built and tested on the Ioniq 6 (CEEV USA 260507); run the compatibility check (cp-climate-check) before installing on another car. Based on LIVI by Lasse Heitgres (GPL-3.0).",
+  "description": "Experimental 2024 EV6 USA 260507 update: stable Vehicle page identities, BCM seat feedback, guarded seat ventilation and wheel-heat controls under Vehicle > Comfort, and diagnostic logging. Requires HMG-API 1.1.0-rc.1 or later and working wireless CarPlay. Ultra themes require the theme-enabled E-GMP routing dependency. Recirculation-off and visual freezes still need on-car diagnosis; integrated FM tuning and driver-display Ultra gauges are not implemented. Based on CarPlay Ultra-Lite and LIVI (GPL-3.0).",
   "requires": [
     "wireless-carplay-aa"
   ],
@@ -29,7 +29,10 @@
       "dipo.carplay.iap_message": "observe",
       "dipo.carplay.native_iap_send": "change",
       "framework.hkmc_loader.automotive_service": "observe",
-      "framework.window_manager_service.intercept_key": "replace"
+      "framework.window_manager_service.intercept_key": "replace",
+      "dipo.carplay.decode_failure": "observe",
+      "dipo.carplay.force_key_frame": "observe",
+      "dipo.carplay.screen_timeout": "observe"
     },
     "native": {
       "libCarPlayCore.so": [
@@ -58,5 +61,8 @@
       "start": "android",
       "restart": true
     }
+  ],
+  "usb": [
+    "CarPlayUltraLite-Logs"
   ]
 }

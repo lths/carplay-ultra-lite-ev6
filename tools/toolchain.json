@@ -9,6 +9,13 @@
     "url": "https://storage.googleapis.com/r8-releases/raw/8.3.37/r8.jar",
     "sha256": "900dfbc649519969fc5a4c7520d6b7355338e565fa1249874e0190b8d61b1199"
   },
+  "native_segment": {
+    "compiler": "Apple clang 21.0.0 (clang-2100.3.34.2)",
+    "target": "armv7a-linux-androideabi, Thumb-2, soft float",
+    "linker": "Zig 0.13.0 ld.lld (ziglang Python distribution)",
+    "elf_parser": "pyelftools 0.32",
+    "reference_library_md5": "d3a47296437df56fb1ffc7ac3dfca4cb"
+  },
   "android_compile_stubs": {
     "version": "Android SDK API 19 revision 4",
     "url": "https://dl.google.com/android/repository/android-19_r04.zip",

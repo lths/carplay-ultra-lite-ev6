@@ -44,6 +44,12 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     static final long PERIOD_MS = 5000;
     static final String LIGHTS_REQUEST = "cpc-lights-req", LIGHTS_STATE = "cpc-lights-state";
     static final String S_CAR = "Vehicle", S_LIGHTS = "Ambient light", S_OPEN = "Head unit";
+    static final String S_COMFORT = "Comfort";
+    static final String[] LEGACY_ROWS = { "open_home", "battery", "precondition", "range", "odometer", "lights",
+            "open_lights", "open_hmgapi", "open_nemesis", "open_radio", "open_ev", "open_vehicle_settings", "version" };
+    static final String[] COMFORT_ROWS = { "wheel_heat", "wheel_heat_status", "driver_seat_status", "driver_vent_low", "driver_vent_medium",
+            "driver_vent_high", "driver_seat_off", "passenger_seat_status", "passenger_vent_low", "passenger_vent_medium",
+            "passenger_vent_high", "passenger_seat_off" };
     /** a screen a button opens: its id, label, symbol, then package[/class] candidates, first one installed wins */
     static final String[][] SCREENS = {
             { "open_hmgapi", "HMG-API", "puzzlepiece.extension", "hmgapi.app/.MainActivity" },
@@ -117,25 +123,37 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     private String driveLast;
 
     /**
-     * The page's rows in their order. have: what the unit has (open_home, precondition, lights, a screen's id),
-     * null for every row, which is what tools/MkVspi.java writes into the description sent at connect.
+     * The page's fixed schema. The legacy have argument no longer removes optional rows: their IDs must
+     * match tools/MkVspi.java even when an optional app is absent. Actions still use the installed-app lookup.
      */
     static VehiclePage describe(VehiclePage page, String model, java.util.Set<String> have, boolean lightsOn) {
         page.sectionName(S_CAR, model);
         page.tile(S_CAR, "car").tile(S_LIGHTS, "lightbulb").tile(S_OPEN, "square.grid.2x2");
-        if (have == null || have.contains("open_home")) page.button(S_CAR, "open_home", "Car home screen", "house");
+        // Keep the complete schema even when an optional app is absent. Removing rows changes the iids
+        // the phone cached at connect, putting e.g. odometer values under the range label.
+        page.button(S_CAR, "open_home", "Car home screen", "house");
         page.line(S_CAR, "battery", "Battery", "battery.100");
-        if (have == null || have.contains("precondition"))
-            page.toggle(S_CAR, "precondition", "Battery preconditioning", "thermometer.medium", false);
+        page.toggle(S_CAR, "precondition", "Battery preconditioning", "thermometer.medium", false);
         page.line(S_CAR, "range", "Range", "gauge");
         page.line(S_CAR, "odometer", "Odometer", "speedometer");
-        if (have == null || have.contains("lights")) {
-            page.toggle(S_LIGHTS, "lights", "Lights follow the music", "light.max", lightsOn);
-            page.button(S_LIGHTS, "open_lights", "Light Vibes", "slider.horizontal.3");
-        }
+        page.toggle(S_LIGHTS, "lights", "Lights follow the music", "light.max", lightsOn);
+        page.button(S_LIGHTS, "open_lights", "Light Vibes", "slider.horizontal.3");
         for (String[] s : SCREENS)
-            if (have == null || have.contains(s[0])) page.button(S_OPEN, s[0], s[1], s[2]);
+            page.button(S_OPEN, s[0], s[1], s[2]);
         page.line(S_OPEN, "version", "CarPlay Ultra-Lite", "info.circle");
+        page.toggle(S_COMFORT, "wheel_heat", "Steering wheel heat", "steeringwheel", false);
+        page.line(S_COMFORT, "wheel_heat_status", "Steering wheel status", "steeringwheel");
+        for (String seat : new String[] { "driver", "passenger" }) {
+            String title = "driver".equals(seat) ? "Driver" : "Passenger";
+            page.line(S_COMFORT, seat + "_seat_status", title + " seat", "carseat.left");
+            for (String level : new String[] { "low", "medium", "high" })
+                page.button(S_COMFORT, seat + "_vent_" + level, title + " ventilation " + level, "fan");
+            page.button(S_COMFORT, seat + "_seat_off", title + " seat heat / ventilation off", "power");
+        }
+        page.pinSection(S_CAR, VehiclePage.BASE).pinSection(S_LIGHTS, VehiclePage.BASE + 16)
+                .pinSection(S_OPEN, VehiclePage.BASE + 32).pinSection(S_COMFORT, VehiclePage.BASE + 0x1000);
+        for (int i = 0; i < LEGACY_ROWS.length; i++) page.pinItem(LEGACY_ROWS[i], 20576L + 16L * i);
+        for (int i = 0; i < COMFORT_ROWS.length; i++) page.pinItem(COMFORT_ROWS[i], VehiclePage.BASE + 0x1100 + 16L * i);
         return page;
     }
 
@@ -227,6 +245,8 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
         work.add(new Runnable() {
             @Override
             public void run() {
+                CarClimate climate = CarClimate.instance;
+                if (climate != null && climate.comfortPressed(id)) return;
                 Intent i = screens.get(id);
                 if (i == null) return;
                 try {
@@ -241,6 +261,11 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
 
     @Override
     public void switched(final String id, final boolean on) {
+        if ("wheel_heat".equals(id)) {
+            CarClimate climate = CarClimate.instance;
+            if (climate != null) climate.wheelHeat(on);
+            return;
+        }
         if ("precondition".equals(id)) {
             precondAskedAt = System.currentTimeMillis();
             precondAskedOn = on;
@@ -320,12 +345,14 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
                 // the cluster drops the odometer's tenths of a km before it converts: 17324.7 km showed as 10,764 mi
                 // (17324 km), not 10,765 (2026-11-10)
                 fresh.put("odometer", VehiclePage.distance(Math.floor(odometer), miles));
+                CarClimate climate = CarClimate.instance;
+                if (climate != null) fresh.putAll(climate.comfortValues());
                 if (lights) {
                     String s = firstLine(new File(dir, LIGHTS_STATE));
                     // what was just pressed stands until the root service has applied it and reported back
                     if (s != null && !new File(dir, LIGHTS_REQUEST).exists() && System.currentTimeMillis() - lightsAskedAt > LIGHTS_HOLD_MS)
-                        fresh.put("lights", !"0".equals(s));
-                }
+                        fresh.put("lights", "1".equals(s));
+                } else fresh.put("lights", false);
                 String precond = "";
                 if (launchpad != null) {
                     int indicator = intCall(BCM, CarApi.BCM, txCondIndicator, -1);
@@ -334,7 +361,7 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
                             System.currentTimeMillis() - precondAskedAt, precondAskedOn));
                     precond = " | conditioning indicator " + indicator + " launchpad " + owned + " enabled "
                             + intCall(HEV, HEV_IFACE, txHevStatus, -1, 94) + " ready " + intCall(HEV, HEV_IFACE, txHevStatus, -1, 44);
-                }
+                } else fresh.put("precondition", false);
                 String seen = "soc " + soc + " range " + range + " km odometer " + odometer + " km unit " + (miles ? "mi" : "km")
                         + " | charging status " + hscanInt(txChargeStatus, false) + " finish " + hscanInt(txChargeFinish, false)
                         + " time " + hscanInt(txChargeTime, false) + " | tyres " + hscanInt(txTyres[0], false) + " "
@@ -371,6 +398,7 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
         txCondIndicator = CarApi.code(CarApi.BCM, "getBattCondIndSta", "()I");
         txHevStatus = CarApi.code(HEV_IFACE, "getHEVStatus", "(I)I");
         out.log("VEH car calls " + calls() + ", conditioning " + txCondIndicator + "/" + txHevStatus);
+        for (String candidate : CarApi.chargingInventory()) out.log("VEH charging candidate " + candidate);
         if (driveLog) {
             int found = 0;
             for (int i = 0; i < DRIVE_PROBES.length; i++) {

@@ -10,13 +10,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * M4: the car's climate on CarPlay, both ways. Once a second (while the phone is on a vehicle
- * state stream) it reads DATCService's voice-control status flags and USMService's seat heat
+ * state stream) it reads DATCService's voice-control status flags and BCMService's seat heat
  * states, adds the temperatures DATCService's callback reports, and hands the result
  * (ClimateMap) to the session's VehicleState, which tells the phone what changed. What the phone
  * writes comes back as phoneWrote and goes to the car, in order, on a thread of its own, as
  * the commands ClimateMap.commands chooses (the ones tested on the car on 2026-11-07).
  */
 final class CarClimate extends Thread implements VehicleState.Car {
+    static volatile CarClimate instance;
     static final String DATC = "com.hkmc.micom.datc", DATC_IFACE = "com.hkmc.datc.IDATCService";
     static final String LISTENER_IFACE = "com.hkmc.datc.IDATCListener";
     static final String USM = "com.hkmc.micom.usm", USM_IFACE = "com.hkmc.usm.IUSMService";
@@ -48,6 +49,11 @@ final class CarClimate extends Thread implements VehicleState.Car {
     static final int txSetPassengerSeat = CarApi.code(CarApi.USM, "setFrontSeatHeatAstStep", "(I)V");
     static final int txRear = CarApi.code(CarApi.VR, "set_RrDefogger_Cmd_AVN", "(I)V");
     static final int txRegisterBcm = CarApi.code(CarApi.BCM, "registerBCMListener", "(Lcom/hkmc/bcm/IBCMListener;Landroid/os/IBinder;)V");
+    static final int txBodyDriverSeat = CarApi.code(CarApi.BCM, "getDrvSeatHeatState", "()I");
+    static final int txBodyPassengerSeat = CarApi.code(CarApi.BCM, "getAstSeatHeatState", "()I");
+    static final int txDriverSeatOption = CarApi.code(CarApi.BCM, "getDrvSeatHeatOption", "()I");
+    static final int txPassengerSeatOption = CarApi.code(CarApi.BCM, "getAstSeatHeatOption", "()I");
+    static final int txWheel = CarApi.code(CarApi.VR, "set_StrgWhlHeated_Cmd_AVN", "(I)V");
     /** the listeners are answered by hand, so only when they are exactly the ones this was written for */
     static final boolean datcListenerOk = CarApi.DATC_LISTENER_PRINT.equals(CarApi.fingerprint(CarApi.DATC_LISTENER));
     static final boolean bcmListenerOk = CarApi.BCM_LISTENER_PRINT.equals(CarApi.fingerprint(CarApi.BCM_LISTENER));
@@ -66,6 +72,9 @@ final class CarClimate extends Thread implements VehicleState.Car {
     private final Binder bodyToken = new Binder();
     private IBinder bcm;
     private boolean bodyTried;
+    private volatile int driverSeatState = -1, passengerSeatState = -1, driverSeatOption = -1, passengerSeatOption = -1;
+    private volatile long seatReadAt;
+    private String lastSeatFeedback;
 
     /**
      * BCMService's listener, answered exactly as the stock com.hkmc.bcm.IBCMListener.Stub (automotive.jar,
@@ -151,6 +160,46 @@ final class CarClimate extends Thread implements VehicleState.Car {
         this.lanes = lanes;
         this.out = out;
         setDaemon(true);
+        instance = this;
+    }
+
+    /** Explicit Vehicle-page ventilation controls, using the same documented USM step as the stock climate app. */
+    boolean comfortPressed(String id) {
+        boolean driver = id.startsWith("driver_"), passenger = id.startsWith("passenger_");
+        if (!driver && !passenger) return false;
+        boolean off = id.endsWith("_seat_off");
+        int step = off ? 2 : id.endsWith("_vent_low") ? 3 : id.endsWith("_vent_medium") ? 4 : id.endsWith("_vent_high") ? 5 : -1;
+        if (step < 0) return false;
+        int raw = driver ? driverSeatState : passengerSeatState;
+        int option = driver ? driverSeatOption : passengerSeatOption;
+        if (!seatFeedbackFresh() || !ClimateMap.seatStateKnown(raw) || (!off && option != 6)) {
+            out.log("CAR " + id + " withheld: seat state " + raw + ", option " + option + " (ventilation requires option 6)");
+            return true;
+        }
+        commands.add(new ClimateMap.Command(ClimateMap.SEAT, driver ? ClimateMap.SET_DRIVER_SEAT : ClimateMap.SET_PASSENGER_SEAT, step, 0));
+        return true;
+    }
+
+    void wheelHeat(boolean on) {
+        if (txWheel < 0 || (body.wheel != 0 && body.wheel != 1)) {
+            out.log("CAR wheel heat withheld: method or live state unavailable");
+            return;
+        }
+        commands.add(new ClimateMap.Command(ClimateMap.WHEEL, on ? 1 : 0, 0, 0));
+    }
+
+    Map<String, Object> comfortValues() {
+        Map<String, Object> values = new java.util.LinkedHashMap<String, Object>();
+        values.put("driver_seat_status", ClimateMap.seatText(seatFeedbackFresh() ? driverSeatState : -1) + (driverSeatOption == 6 ? "" : " (ventilation unavailable)"));
+        values.put("passenger_seat_status", ClimateMap.seatText(seatFeedbackFresh() ? passengerSeatState : -1) + (passengerSeatOption == 6 ? "" : " (ventilation unavailable)"));
+        values.put("wheel_heat_status", body.wheel == 0 ? "Off" : body.wheel == 1 ? "On" : "State unavailable (control withheld)");
+        if (body.wheel == 0 || body.wheel == 1) values.put("wheel_heat", body.wheel == 1);
+        return values;
+    }
+
+    boolean seatFeedbackFresh() {
+        long age = System.currentTimeMillis() - seatReadAt;
+        return seatReadAt > 0 && age >= 0 && age <= 3 * PERIOD_MS;
     }
 
     @Override
@@ -193,6 +242,10 @@ final class CarClimate extends Thread implements VehicleState.Car {
     /** sends a command; false if nothing needed sending */
     boolean send(ClimateMap.Command c) throws Exception {
         if (c.kind == ClimateMap.REAR) return pressRear(c.a);
+        if (c.kind == ClimateMap.WHEEL) return pressWheel(c.a);
+        if (c.kind == ClimateMap.SEAT && (!seatFeedbackFresh()
+                || !ClimateMap.seatStateKnown(c.a == ClimateMap.SET_DRIVER_SEAT ? driverSeatState : passengerSeatState)))
+            throw new IllegalStateException("seat command withheld until live body-controller feedback is known");
         if ((c.kind == ClimateMap.VR || c.kind == ClimateMap.FRONT)
                 && (!climateFlagsOk || (unit != ClimateMap.CELSIUS && unit != ClimateMap.FAHRENHEIT)))
             throw new IllegalStateException("climate command withheld: flag layout or temperature unit is not verified");
@@ -212,13 +265,27 @@ final class CarClimate extends Thread implements VehicleState.Car {
                 data.writeInt(c.b);
                 if (c.kind == ClimateMap.VR) data.writeInt(c.c);
             }
-            b.transact(code, data, reply, 0);
+            if (!b.transact(code, data, reply, 0)) throw new IllegalStateException("vehicle service rejected transaction " + code);
             reply.readException();
         } finally {
             data.recycle();
             reply.recycle();
         }
         return true;
+    }
+
+    boolean pressWheel(int on) throws Exception {
+        if (txWheel < 0 || (on != 0 && on != 1)) throw new IllegalStateException("wheel heat unavailable");
+        IBinder vr = service(VR_SERVICE);
+        if (vr == null) throw new IllegalStateException("no " + VR_SERVICE);
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(VR_IFACE);
+            data.writeInt(on);
+            if (!vr.transact(txWheel, data, reply, 0)) throw new IllegalStateException("wheel transaction rejected");
+            reply.readException();
+            return true;
+        } finally { data.recycle(); reply.recycle(); }
     }
 
     /**
@@ -243,7 +310,7 @@ final class CarClimate extends Thread implements VehicleState.Car {
         return true;
     }
 
-    /** registers the BCMService listener once (only with the rear_defrost setting on) */
+    /** Registers only the previously verified BCM listener, for rear-defrost and wheel feedback. */
     void watchBody() {
         if (bodyTried) return;
         bodyTried = true;
@@ -343,14 +410,20 @@ final class CarClimate extends Thread implements VehicleState.Car {
         r.passengerC = temps.passengerC;
         r.passengerF = temps.passengerF;
         r.passengerState = temps.passengerState;
-        IBinder usm = service(USM);
-        if (usm != null) {
-            r.driverSeat = seat(usm, txDriverSeat);
-            r.passengerSeat = seat(usm, txPassengerSeat);
-        }
-        if (rearDefrost) {
+        IBinder bodyService = service(BCM), usm = service(USM);
+        int bd = readInt(bodyService, BCM_IFACE, txBodyDriverSeat), bp = readInt(bodyService, BCM_IFACE, txBodyPassengerSeat);
+        int ud = seat(usm, txDriverSeat), up = seat(usm, txPassengerSeat);
+        r.driverSeat = driverSeatState = ClimateMap.seatFeedback(bd, ud);
+        r.passengerSeat = passengerSeatState = ClimateMap.seatFeedback(bp, up);
+        driverSeatOption = readInt(bodyService, BCM_IFACE, txDriverSeatOption);
+        passengerSeatOption = readInt(bodyService, BCM_IFACE, txPassengerSeatOption);
+        seatReadAt = System.currentTimeMillis();
+        String feedback = "BCM " + bd + "/" + bp + ", USM " + ud + "/" + up + ", options " + driverSeatOption + "/" + passengerSeatOption
+                + ", wheel " + body.wheel;
+        if (!feedback.equals(lastSeatFeedback)) { out.log("CAR seat feedback " + feedback); lastSeatFeedback = feedback; }
+        if (rearDefrost || txWheel >= 0) {
             watchBody();
-            r.rearDefog = body.defogger;
+            if (rearDefrost) r.rearDefog = body.defogger;
         }
         return r;
     }
@@ -417,11 +490,15 @@ final class CarClimate extends Thread implements VehicleState.Car {
     }
 
     static int seat(IBinder usm, int code) {
-        if (code < 0) return -1;
+        return readInt(usm, USM_IFACE, code);
+    }
+
+    static int readInt(IBinder binder, String iface, int code) {
+        if (binder == null || code < 0) return -1;
         Parcel data = Parcel.obtain(), reply = Parcel.obtain();
         try {
-            data.writeInterfaceToken(USM_IFACE);
-            usm.transact(code, data, reply, 0);
+            data.writeInterfaceToken(iface);
+            if (!binder.transact(code, data, reply, 0)) return -1;
             reply.readException();
             return reply.readInt();
         } catch (Throwable t) {

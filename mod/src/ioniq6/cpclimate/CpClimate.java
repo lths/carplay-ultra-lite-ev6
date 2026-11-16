@@ -33,7 +33,7 @@ public final class CpClimate extends ModEntry {
     /** left in DiPO's files folder at each CarPlay session when adb_keepalive is on; svc/helper.sh acts on it */
     static final String ADB_REQUEST = "cpc-adb-req";
     /** shown on the Vehicle page; keep in step with mod.json */
-    static final String VERSION = "1.3.3-ev6.1";
+    static final String VERSION = "1.3.3-ev6.2";
     static final String GUARD_FILE = "cp-climate-guard";
     static final int GUARD_STARTS = 2;
     static final long GUARD_MS = 10 * 60 * 1000L;
@@ -48,11 +48,13 @@ public final class CpClimate extends ModEntry {
     static File guard;
     static final Set<String> copied = new HashSet<String>();
     static boolean busy;
+    static final java.util.concurrent.atomic.AtomicInteger videoLines = new java.util.concurrent.atomic.AtomicInteger();
 
 
     /**
      * In the zygote. Only with the experiment on at start (setting carplay_volume_slider): a hook on the car's
-     * key entry in system_server (VolumeKeys). Off, nothing of this mod runs outside CarPlay's own process.
+     * key entry in system_server (VolumeKeys). Passive stock-climate tracing, when enabled, is installed
+     * separately in matching app processes by appLoaded.
      */
     @Override
     public void zygoteInit(ModContext m) {
@@ -61,6 +63,7 @@ public final class CpClimate extends ModEntry {
 
     @Override
     public void appLoaded(ModContext m, LoadedApp app) {
+        StockTrace.install(m, app);
         if (!DIPO.equals(app.packageName)) return;
         mod = m;
         File dir = app.context != null ? app.context.getFilesDir() : new File("/data/data/" + DIPO + "/files");
@@ -167,6 +170,21 @@ public final class CpClimate extends ModEntry {
             }
         });
         m.hook(app.classLoader, "dipo.carplay.session_finalized", copy);
+        // Observe decoder failures and the stock receiver's own frame requests. This does not
+        // claim to repair a frozen Surface or add a second recovery loop to the stock decoder.
+        for (final String point : new String[] { "dipo.carplay.decode_failure", "dipo.carplay.force_key_frame", "dipo.carplay.screen_timeout" }) {
+            try {
+                m.hook(app.classLoader, point, new MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(Param p) {
+                        try {
+                            if (videoLines.getAndIncrement() < 160)
+                                mod.log("VIDEO " + point + " " + java.util.Arrays.toString(p.args));
+                        } catch (Throwable ignored) { /* Logging must never interrupt the stock decoder. */ }
+                    }
+                });
+            } catch (Throwable t) { m.log("VIDEO observer unavailable " + point + ": " + t.getClass().getSimpleName()); }
+        }
         // iAP the phone sends as iAPSendMessage commands: the wireless-carplay-aa mod hands those to iap2server
         // itself (feeding them here too doubled them); only DiPO's CarPlayService is taken from it
         try {

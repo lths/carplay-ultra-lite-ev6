@@ -11,9 +11,10 @@ echo "check finished: $(ls "$OUT")"
 n=0
 while [ $n -lt 180 ]; do
     copied=0
-    for d in $(hmgapid usb); do
+    hmgapid usb ev6-carplay-check > "$HMGAPI_DATA/usb-paths"
+    while IFS= read -r d; do
         cp "$OUT/cp-climate-check.md" "$OUT/cp-climate-check.json" "$d/" 2>/dev/null && copied=1
-    done
+    done < "$HMGAPI_DATA/usb-paths"
     if [ $copied = 1 ]; then
         echo "report copied to the USB stick"
         exit 0

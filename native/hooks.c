@@ -438,7 +438,8 @@ static int add_view_area(CF info, int pct, int edge, int extras, int wide) {
  * its fallback 200 dpi, knobs, dark), whose video the Java side takes and throws away. 1 if added */
 #define ALT_W 800
 #define ALT_H 480
-#define ALT_FPS 30
+/* This display is discarded by ClusterSink. Avoid asking the phone to render it at 30 fps. */
+#define ALT_FPS 5
 #define PRIMARY_INPUT_KNOBS 3
 #define DISPLAY_FEATURE_HIGH_FIDELITY_TOUCH 0x08
 

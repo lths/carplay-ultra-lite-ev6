@@ -28,6 +28,34 @@ public final class CarApi {
     public static final String AUDIO = "com.hkmc.media.IMicomAudioService", AUDIO_SERVICE = "com.hkmc.micom.audiosetup";
     public static final String HSCAN = "com.hkmc.telematics.hscan.tm_interface.ITM_HSCANService";
     public static final String HSCAN_JAR = "/system/framework/com.hkmc.ext.hcan.jar", HSCAN_SERVICE = "tm_hscan_service";
+    public static final String HEV = "com.hkmc.hev.IHEVService";
+
+    /** Owner-supplied charging leads. Names alone do not establish units, a service binding or a callback ABI. */
+    public static final String[] CHARGING_CANDIDATES = { "getVCMS_EvsePwrDis", "getCCM_EvseMainsPwr", "getOBC_AcPwrDis",
+            "getXEV_BatPwrSum_Kwh", "getBMS8_CR_Bms_DisplaySoc", "getBatSoc", "getBMS5_CR_Bms_ScChgRemainedTime_240V",
+            "getBMS8_CR_Bms_ScChgRemainedTime_120_min", "getRemainChargingTime", "getChargingInfo", "getChargeVCU9Info",
+            "addChargeStatusListener", "onEVSEStatusChanged" };
+
+    /** Reflection only: does not invoke getters, setters, adapters or listener registration. */
+    public static List<String> chargingInventory() {
+        ClassLoader loader = hscanLoader();
+        List<String> report = new ArrayList<String>();
+        for (String name : CHARGING_CANDIDATES) {
+            boolean found = false;
+            for (String iface : new String[] { HSCAN, HEV }) {
+                try {
+                    for (Method method : Class.forName(iface, false, loader).getMethods()) {
+                        if (!name.equals(method.getName())) continue;
+                        String desc = descriptor(method);
+                        report.add(iface + "." + name + desc + " tx=" + code(loader, iface, name, desc));
+                        found = true;
+                    }
+                } catch (Throwable unavailable) { /* This inventory cannot enable a control. */ }
+            }
+            if (!found) report.add(name + ": not found in checked HSCAN/HEV interfaces");
+        }
+        return report;
+    }
 
     /** Shared by the runtime and checker. Transaction numbers can move; these flag meanings must not. */
     public static final String[][] CLIMATE_FLAGS = {

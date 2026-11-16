@@ -29,7 +29,7 @@ import ioniq6.cpclimate.CarApi;
  * Everything is compared with the car it was written and tested on: Ioniq 6 (CEEV) USA firmware 260507.
  */
 public final class Main {
-    static final String VERSION = "1.1.0-ev6.1 (CarPlay Ultra-Lite 1.3.3-ev6.1)";
+    static final String VERSION = "1.1.0-ev6.2 (CarPlay Ultra-Lite 1.3.3-ev6.2)";
     static final String REFERENCE = "Ioniq 6 (CEEV) USA 260507";
 
     static final class Check {
@@ -317,6 +317,17 @@ public final class Main {
                     code < 0 ? "Not on this firmware (or another signature): cp-climate leaves out " + c[4] + "."
                             : found.equals(c[3]) ? "Same number as the Ioniq 6." : "Another number than the Ioniq 6; cp-climate looks it up by name, so it uses the right one.");
         }
+        for (String name : new String[] { "getDrvSeatHeatState", "getAstSeatHeatState", "getDrvSeatHeatOption", "getAstSeatHeatOption" }) {
+            int code = CarApi.code(CarApi.BCM, name, "()I");
+            add("Car framework", "IBCMService." + name + "()I", code >= 0 ? "PASS" : "WARN", String.valueOf(code), "matching signature",
+                    "Body-controller seat feedback is preferred over USM; a missing getter or a -1 reading does not establish working seat controls.");
+        }
+        int wheel = CarApi.code(CarApi.VR, "set_StrgWhlHeated_Cmd_AVN", "(I)V");
+        add("Car framework", "IVRService.set_StrgWhlHeated_Cmd_AVN(I)V", wheel >= 0 ? "PASS" : "WARN", String.valueOf(wheel), "matching signature",
+                "Signature only. Runtime wheel commands also require known state from the checked BCM listener.");
+        for (String candidate : CarApi.chargingInventory())
+            add("Charging discovery", candidate, "INFO", "signature inventory only", "units and meaning still require verification",
+                    "No charging method is invoked and no listener is registered. In the HMG EV6 map getBatSoc is the 12 V battery SOC; retain remainBatteryPercentage for traction-battery percent.");
         String datc = CarApi.fingerprint(CarApi.DATC_LISTENER), bcm = CarApi.fingerprint(CarApi.BCM_LISTENER);
         add("Car framework", "IDATCListener fingerprint", CarApi.DATC_LISTENER_PRINT.equals(datc) ? "PASS" : "WARN", String.valueOf(datc), CarApi.DATC_LISTENER_PRINT,
                 CarApi.DATC_LISTENER_PRINT.equals(datc) ? "cp-climate registers its temperature listener." : "Differs: cp-climate won't register the temperature listener (temperatures still come from the status flags, in whole degrees).");
@@ -389,7 +400,7 @@ public final class Main {
     }
 
     void live() {
-        Object datc = service("com.hkmc.micom.datc"), usm = service("com.hkmc.micom.usm");
+        Object datc = service("com.hkmc.micom.datc"), usm = service("com.hkmc.micom.usm"), bcm = service("com.hkmc.micom.bcm");
         facts.put("service com.hkmc.micom.datc", datc != null ? "present" : "missing");
         facts.put("service com.hkmc.micom.usm", usm != null ? "present" : "missing");
         facts.put("service com.hkmc.micom.bcm", service("com.hkmc.micom.bcm") != null ? "present" : "missing");
@@ -417,9 +428,23 @@ public final class Main {
         if ("1".equals(unit)) add("Live climate", "Temperature unit °C", "WARN", "°C", "°F (tested)", "cp-climate has a °C path, but it was never tried on a car: temperatures need checking on the first drive.");
         String ds = call(usm, CarApi.USM, CarApi.code(CarApi.USM, "getFrontSeatHeat_DrvState", "()I"), "int");
         String ps = call(usm, CarApi.USM, CarApi.code(CarApi.USM, "getFrontSeatHeat_AstState", "()I"), "int");
-        boolean seats = ds != null && ps != null && !ds.startsWith("error") && !ps.startsWith("error");
-        add("Live climate", "Seat heat states", seats ? "PASS" : "WARN", "driver " + ds + ", passenger " + ps, "2 off, 6/7/8 low/mid/high",
-                seats ? "If they show 2 with the seats off, the levels match the Ioniq 6's." : "Seat heat couldn't be read here.");
+        String bd = call(bcm, CarApi.BCM, CarApi.code(CarApi.BCM, "getDrvSeatHeatState", "()I"), "int");
+        String bp = call(bcm, CarApi.BCM, CarApi.code(CarApi.BCM, "getAstSeatHeatState", "()I"), "int");
+        boolean seats = seatFeedback(bd, ds) >= 0 && seatFeedback(bp, ps) >= 0;
+        add("Live climate", "Seat heat states", seats ? "PASS" : "WARN", "BCM " + bd + "/" + bp + "; USM " + ds + "/" + ps,
+                "2 off, 3/4/5 ventilation low/mid/high, 6/7/8 heat low/mid/high",
+                seats ? "Valid states found; compare levels with Kia's own controls. This is read access, not a functional command test."
+                        : "Unknown or invalid seat state. Runtime seat commands are withheld until valid live feedback is available.");
+    }
+
+    static int seatFeedback(String body, String usm) {
+        for (String value : new String[] { body, usm }) {
+            try {
+                int raw = Integer.parseInt(value);
+                if (raw >= 2 && raw <= 8) return raw;
+            } catch (Exception invalid) { /* Missing/error/negative values never pass. */ }
+        }
+        return -1;
     }
 
     // ---- verdicts and the report ----
@@ -436,8 +461,8 @@ public final class Main {
                 !nativeOk ? "cp-climate's native patch doesn't fit this CarPlay library" : !flags ? "the climate flag numbers differ" : !liveClimate ? "live readings or temperature unit unavailable" : "climate calls missing"));
         v.add(verdict("Driver Only (passenger power button) and passenger temperature", nativeOk && front && flags && liveClimate && pass("Car framework", "IDATCService.getDriverOnlyValue()I"), "needs verified climate reads/units, setFrontClimateControl and getDriverOnlyValue"));
         boolean seat = pass("Car framework", "IUSMService.setFrontSeatHeatDrvStep(I)V") && pass("Car framework", "IUSMService.setFrontSeatHeatAstStep(I)V")
-                && pass("Car framework", "IUSMService.getFrontSeatHeat_DrvState()I") && pass("Car framework", "IUSMService.getFrontSeatHeat_AstState()I");
-        v.add(verdict("Seat heat", nativeOk && seat && flags && liveClimate, "seat heat calls missing or CarPlay climate reads/units unavailable"));
+                && pass("Live climate", "Seat heat states");
+        v.add(verdict("Seat heat", nativeOk && seat && flags && liveClimate, "seat commands or valid live seat feedback missing, or CarPlay climate reads/units unavailable"));
         v.add(verdict("Front defrost", nativeOk && set && flags && liveClimate, "needs verified climate reads/units, setVRClimateStatus and the FRONT_DEFOG flag"));
         boolean rear = pass("Car framework", "IVRService.set_RrDefogger_Cmd_AVN(I)V");
         boolean rearState = rear && pass("Car framework", "IBCMListener fingerprint") && pass("Car framework", "IBCMService.registerBCMListener(Lcom/hkmc/bcm/IBCMListener;Landroid/os/IBinder;)V");

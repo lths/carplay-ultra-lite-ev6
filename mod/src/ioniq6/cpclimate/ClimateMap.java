@@ -133,7 +133,7 @@ final class ClimateMap {
     static void seat(Map<Long, Object> v, int state, long levelIid, long onIid) {
         long level;
         switch (state) {
-            case 2: level = 0; break;
+            case 2: case 3: case 4: case 5: level = 0; break;
             case 6: level = 1; break;
             case 7: level = 2; break;
             case 8: level = 3; break;
@@ -164,7 +164,7 @@ final class ClimateMap {
      * a command: DATCService setVRClimateStatus(a, b, c), setFrontClimateControl(a, b), USMService a(b), or
      * the rear defroster on (a 1) or off (a 0), which CarClimate sends through VRService
      */
-    static final int VR = 0, FRONT = 1, SEAT = 2, REAR = 3;
+    static final int VR = 0, FRONT = 1, SEAT = 2, REAR = 3, WHEEL = 4;
     static final int SET_DRIVER_SEAT = 0xd5, SET_PASSENGER_SEAT = 0xd6;
     static final int FRONT_DRIVER_ONLY = 24;
     static final int FAHRENHEIT = 2, FRONT_DRIVER_C = 28, FRONT_PASSENGER_C = 29, FRONT_PASSENGER_F = 31;
@@ -183,6 +183,7 @@ final class ClimateMap {
         @Override
         public String toString() {
             if (kind == REAR) return "rear(" + a + ")";
+            if (kind == WHEEL) return "wheel(" + a + ")";
             return (kind == VR ? "vr" : kind == FRONT ? "front" : "seat") + "(" + a + ", " + b + (kind == VR ? ", " + c : "") + ")";
         }
     }
@@ -242,19 +243,40 @@ final class ClimateMap {
                         : new Command(FRONT, FRONT_PASSENGER_F, toFahrenheit((Double) v) - 56, 0));
             } else if (iid == UPPER_ON || iid == LOWER_ON) {
                 vents = true;
-            } else if (iid == DRIVER_SEAT_LEVEL || iid == DRIVER_SEAT_ON) {
-                Command c = seat(SET_DRIVER_SEAT, iid == DRIVER_SEAT_ON, v, now.get(DRIVER_SEAT_LEVEL));
-                if (c != null) out.add(c);
-            } else if (iid == PASSENGER_SEAT_LEVEL || iid == PASSENGER_SEAT_ON) {
-                Command c = seat(SET_PASSENGER_SEAT, iid == PASSENGER_SEAT_ON, v, now.get(PASSENGER_SEAT_LEVEL));
-                if (c != null) out.add(c);
             }
         }
+        seatWrite(out, written, now, DRIVER_SEAT_LEVEL, DRIVER_SEAT_ON, SET_DRIVER_SEAT);
+        seatWrite(out, written, now, PASSENGER_SEAT_LEVEL, PASSENGER_SEAT_ON, SET_PASSENGER_SEAT);
         if (vents) {
             boolean upper = Boolean.TRUE.equals(now.get(UPPER_ON)), lower = Boolean.TRUE.equals(now.get(LOWER_ON));
             if (upper || lower) out.add(new Command(VR, 6, upper && lower ? 2 : upper ? 1 : 3, 0));
         }
         return out;
+    }
+
+    /** Resolve one desired state per seat. A stale level in the same request must not undo an explicit OFF. */
+    static void seatWrite(List<Command> out, Map<Long, Object> written, Map<Long, Object> now, long level, long on, int code) {
+        if (!written.containsKey(level) && !written.containsKey(on)) return;
+        Object l = written.get(level), enabled = written.get(on);
+        if (Boolean.FALSE.equals(enabled) || Long.valueOf(0).equals(l)) {
+            out.add(new Command(SEAT, code, 2, 0));
+        } else {
+            Command c = written.containsKey(level) ? seat(code, false, l, null) : seat(code, true, enabled, now.get(level));
+            if (c != null) out.add(c);
+        }
+    }
+
+    static boolean seatStateKnown(int raw) { return raw >= 2 && raw <= 8; }
+
+    static int seatFeedback(int body, int usm) {
+        return seatStateKnown(body) ? body : seatStateKnown(usm) ? usm : -1;
+    }
+
+    static String seatText(int raw) {
+        if (raw == 2) return "Off";
+        if (raw >= 3 && raw <= 5) return "Ventilation " + (raw - 2);
+        if (raw >= 6 && raw <= 8) return "Heat " + (raw - 5);
+        return "State unavailable";
     }
 
     static final long MAX_AC = 516;

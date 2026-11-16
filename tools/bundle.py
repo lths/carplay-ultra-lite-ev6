@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble the first EV6 CarPlay test: verified private mod plus original signed theme dependency."""
+"""Assemble an EV6 USB install bundle with the original signed theme dependency."""
 import argparse
 import hashlib
 import io
@@ -53,6 +53,7 @@ def main():
         raise ValueError("original upstream bundle checksum mismatch")
     engine = args.sdk.resolve() / "lib/hmgapi-engine.jar"
     mod = args.mod_package.read_bytes()
+    own_version = json.loads((ROOT / "mod/mod.json").read_text())["version"]
     with zipfile.ZipFile(io.BytesIO(upstream)) as archive:
         routing_path = next(n for n in archive.namelist() if "/usb-2-install-ev6-ioniq5/" in n
                 and n.endswith("/egmp-carplay-ev-routing-0.4.3-ioniq6.15.zip"))
@@ -64,7 +65,7 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="ev6-install-") as temporary:
         work = Path(temporary)
-        cm, cs = inspect_package(mod, work / "climate", engine, "cp-climate", "1.3.3-ev6.1", PRIVATE_AUTHOR)
+        cm, cs = inspect_package(mod, work / "climate", engine, "cp-climate", own_version, PRIVATE_AUTHOR)
         rm, rs = inspect_package(routing, work / "routing", engine, "egmp-carplay-ev-routing", "0.4.3-ioniq6.15", ROUTING_AUTHOR)
         if not cs["carplay_ultra"] or rs["carplay_theme"] != "44C9FA31EC:985:19.0" or not rs["carplay_start_session"]:
             raise ValueError("theme and Ultra defaults do not match")
@@ -80,7 +81,8 @@ def main():
         updates = contents / "HMGAPI/updates"
         updates.mkdir(parents=True)
         (updates / "egmp-carplay-ev-routing-0.4.3-ioniq6.15.zip").write_bytes(routing)
-        (updates / "cp-climate-1.3.3-ev6.1.zip").write_bytes(mod)
+        mod_name = "cp-climate-" + cm["version"] + ".zip"
+        (updates / mod_name).write_bytes(mod)
         sources = contents / "source"
         sources.mkdir()
         (sources / PurePosixPath(source_path).name).write_bytes(source)
@@ -92,12 +94,17 @@ def main():
         report_folder = contents / "CarPlayUltraLite-Check"
         report_folder.mkdir()
         (report_folder / "README.txt").write_text("Optional checker export folder. The installed checker may copy cp-climate-check.md and .json here on its next run.\n")
+        log_folder = contents / "CarPlayUltraLite-Logs"
+        log_folder.mkdir()
+        (log_folder / "README.txt").write_text("Filtered climate/video diagnostics are copied to ev6-carplay.log while this folder is on an inserted USB stick.\n")
+        commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
         build = {
-            "mod_source_commit": "5b2ec88414c636b4832516443a09e72feab06369",
-            "bundle_source_commit": subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip(),
+            "mod_source_commit": commit,
+            "bundle_source_commit": commit,
             "target": "2024 Kia EV6 CVEV USA 260507",
-            "validation": {"source": "owner-provided service-log photo, 2026-11-15", "checker": "1.1.0-ev6.1",
-                "feature_verdicts": "8 YES", "detailed_reports": "not retrieved", "functional_control_test": "pending"},
+            "validation": {"source": "owner-provided functional results and log photos; docs/EV6-VALIDATION.md",
+                "original_checker": "1.1.0-ev6.1; 8 YES was interface evidence only; invalid seat values were accepted",
+                "detailed_reports": "not retrieved", "current_build_on_car": "not yet tested"},
             "packages": [
                 {"id": cm["id"], "version": cm["version"], "author_uuid": PRIVATE_AUTHOR, "sha256": digest(mod)},
                 {"id": rm["id"], "version": rm["version"], "author_uuid": ROUTING_AUTHOR, "sha256": digest(routing)}],
@@ -108,7 +115,7 @@ def main():
         (contents / "BUILD.json").write_text(json.dumps(build, indent=2) + "\n")
         files = sorted(p for p in contents.rglob("*") if p.is_file())
         (contents / "SHA256SUMS").write_text("".join(digest(p.read_bytes()) + "  " + p.relative_to(contents).as_posix() + "\n" for p in files))
-        destination = output / "carplay-ultra-lite-ev6-1.3.3-ev6.1-install-usb.zip"
+        destination = output / ("carplay-ultra-lite-ev6-" + cm["version"] + "-install-usb.zip")
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(contents.rglob("*")):
                 if path.is_file():
@@ -117,7 +124,7 @@ def main():
             packages = [p for p in archive.namelist() if p.startswith("HMGAPI/updates/")]
             if len(packages) != 2 or any("wireless" in p for p in packages):
                 raise ValueError("bundle must contain exactly the theme dependency and private EV6 mod")
-            if archive.read("HMGAPI/updates/cp-climate-1.3.3-ev6.1.zip") != mod:
+            if archive.read("HMGAPI/updates/" + mod_name) != mod:
                 raise ValueError("bundle changed the signed private mod")
             if archive.read("HMGAPI/updates/egmp-carplay-ev-routing-0.4.3-ioniq6.15.zip") != routing:
                 raise ValueError("bundle changed the signed routing dependency")

@@ -84,6 +84,21 @@ public class VehiclePageTest {
 
     @SuppressWarnings("unchecked")
     public static void main(String[] a) {
+        VehiclePage complete = CarVehicle.describe(new VehiclePage(), "EV6", null, false);
+        java.util.Set<String> minimalApps = new java.util.HashSet<String>();
+        minimalApps.add("open_home");
+        VehiclePage minimal = CarVehicle.describe(new VehiclePage(), "EV6", minimalApps, false);
+        boolean sameRows = true;
+        for (VehiclePage.Item item : complete.items())
+            sameRows &= minimal.item(item.id) != null && minimal.item(item.id).iid == item.iid;
+        check("missing optional apps never renumber Vehicle-page readings or actions", sameRows);
+        check("legacy battery, range, odometer and radio retain the native description's identities",
+                minimal.item("battery").valueIid() == 20595 && minimal.item("range").valueIid() == 20627
+                && minimal.item("odometer").valueIid() == 20643 && minimal.item("open_radio").valueIid() == 20723);
+        java.util.Set<Long> pinned = new java.util.HashSet<Long>();
+        for (VehiclePage.Item item : complete.items()) pinned.add(item.iid);
+        check("comfort rows have unique identities outside the legacy rows", pinned.size() == complete.items().size()
+                && complete.item("wheel_heat").iid >= VehiclePage.BASE + 0x1100);
         // without a page: LIVI's two version lines, untouched
         VehicleState.page = null;
         Map<Object, Object> livi = accessory(session(), VehiclePage.ACCESSORY);

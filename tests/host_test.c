@@ -59,7 +59,7 @@ static const void *m_new_dict(const void *al, long cap, const void *k, const voi
 }
 static const char *m_cstr(const void *s, unsigned enc) { if (enc != 0x08000100u) abort(); return ((const Str *)s)->s; }
 static const void *m_new_str(const void *al, const char *s, unsigned enc) { (void)al; if (enc != 0x08000100u) abort(); return str(s); }
-static unsigned char vspi_file[65536];
+static unsigned char vspi_file[256 * 1024];
 static unsigned long vspi_len;
 static int plist_fail;
 #include "livi_hid.h"
@@ -122,7 +122,7 @@ static unsigned long id_dict(void) { return T_DICT; }
 static int logcat;
 
 int cpc_table[T_COUNT];
-unsigned char cpc_vspi[65536];
+unsigned char cpc_vspi[256 * 1024];
 unsigned long cpc_vspi_len;
 void cpc_info_hook(const void *info);
 void cpc_setup_hook(const void *request, const void *reply);
@@ -407,11 +407,11 @@ int main(void) {
         cpc_info_hook(si);
         ds2 = g(si, "displays");
         const void *um = ds2 && ds2->n == 2 ? ds2->v[0] : 0, *ua = ds2 && ds2->n == 2 ? ds2->v[1] : 0;
-        CHECK("Ultra: main display type 110 with its viewArea, cluster type 111 800x480 102x61 mm 30 fps",
+        CHECK("Ultra: main display type 110 with its viewArea, cluster type 111 800x480 102x61 mm 5 fps",
               um && ua && n_of(g(um, "type")) == 110 && g(um, "viewAreas") && n_of(g(um, "widthPixels")) == 1920
               && !strcmp(s_of(g(ua, "uuid")), "b7e6c5a0-2222-4000-8000-000000000002") && n_of(g(ua, "type")) == 111
               && n_of(g(ua, "widthPixels")) == 800 && n_of(g(ua, "heightPixels")) == 480
-              && n_of(g(ua, "widthPhysical")) == 102 && n_of(g(ua, "heightPhysical")) == 61 && n_of(g(ua, "maxFPS")) == 30
+              && n_of(g(ua, "widthPhysical")) == 102 && n_of(g(ua, "heightPhysical")) == 61 && n_of(g(ua, "maxFPS")) == 5
               && n_of(g(ua, "features")) == 10 && n_of(g(ua, "primaryInputDevice")) == 3 && !g(ua, "viewAreas"));
         const Arr *up = g(si, "displayPanels");
         const Arr *upr = up && up->n == 3 ? g(up->v[1], "properties") : 0;
