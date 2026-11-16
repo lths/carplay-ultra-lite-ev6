@@ -2,7 +2,8 @@
 
 Private development copy for a **2024 Kia EV6 with Gen5W USA firmware 260507**, based on
 [SafariForest/CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
-Version **1.3.3-ev6.1** is an experimental source port. **On-car compatibility and control behavior are pending.**
+Version **1.3.3-ev6.1** is an experimental port. **The owner's on-car diagnostic returned YES for all eight feature groups;
+the first functional CarPlay/control test is next.** The detailed report files were not retrieved; the owner asked to proceed from the service log.
 The owner's wireless CarPlay already works through HMG-API. Requires an iPhone on iOS 26 or later.
 
 GitHub requires native forks of public repositories to remain public. This private repository retains the
@@ -25,16 +26,24 @@ The published EV6 USA 260507 stock list has the same `libCarPlayCore.so` MD5 tar
 `d3a47296437df56fb1ffc7ac3dfca4cb`. HMG-API's EV6 map contains all six requested Java hook points.
 Evidence: [stock checksums](https://github.com/Open-HMG/hmgapi-wireless-cp-aa/blob/fa672126f1fa2c37f457534fa6a476ad3b8a24b5/wireless-carplay-aa/patches/ev6/stock),
 [EV6 map](https://github.com/Open-HMG/HMG-API/tree/e15dadcccd4dbebac2cc62557c0a8c0aacb184a4/maps/kia/ev6/usa/260507).
-These facts do not establish climate encoding, audio stream assignments or battery-model calibration on this car.
+The owner's diagnostic now also establishes the required interface and read-access checks on the actual unit.
+This does not establish command behavior, audio stream assignments or battery-model calibration on this car.
+See [the validation record](docs/EV6-VALIDATION.md).
 
-## Run the check first
+## First CarPlay test
+
+The installation release supplies `carplay-ultra-lite-ev6-1.3.3-ev6.1-install-usb.zip` with both signed packages:
+the private EV6 mod and the original theme-enabled routing dependency. It retains the existing wireless mod.
+Follow [the EV6 installation steps](docs/INSTALL-EV6.md). The runtime code and compatibility guards have not been relaxed.
+
+## Compatibility check, for a new unit
 
 Use this repository's `ev6-carplay-check-1.1.0-ev6.1-usb.zip` from its private release.
 
 1. Unzip it and copy `HMGAPI` to the root of a USB stick.
 2. In HMG-API, open Updates, install **EV6 CarPlay Ultra-Lite compatibility check**, apply, and restart if requested.
 3. About a minute after startup, the USB stick receives `CarPlayUltraLite-Check/cp-climate-check.md` and `.json`.
-4. Return both reports and remove the checker in HMG-API.
+4. Return both reports when available. The owner's all-YES service log has already been accepted for this unit's first CarPlay test.
 
 The checker has its own ID, `ev6-carplay-check`, and this fork's signing key, so it can coexist with the
 upstream checker. The public author key is in [signing/author.pub](signing/author.pub); the private key stays
@@ -75,6 +84,7 @@ Full compilation additionally takes an Android `android.jar` and the HMG-API mod
 python3 tools/test.py --android-jar /path/to/android.jar --sdk /path/to/hmgapi-sdk
 python3 tools/package.py check --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
 python3 tools/package.py mod --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
+python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.1.zip --sdk /path/to/hmgapi-sdk
 ```
 
 The packager emits signed mod ZIPs and USB wrappers in `out/check` or `out/mod`. It creates the author key at
