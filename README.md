@@ -3,7 +3,9 @@
 Private development copy for a **2024 Kia EV6, Gen5W USA firmware 260507**. Current test version:
 **1.3.3-ev6.2**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
 Requires working wireless CarPlay, **HMG-API 1.1.0-rc.1 or later**, and the existing theme-enabled routing dependency.
-The owner uses iOS 27.2. This build has passed host checks and has **not yet been tested on the car**.
+The owner uses iOS 27.2 and confirms **ventilation, wheel heat, range, odometer and battery percentage work**
+on ev6.2. Battery preconditioning was traced to the separate Launchpad / Precondition app being absent;
+see the [diagnostic finding and USB installation path](docs/PRECONDITIONING-DIAGNOSTICS.md).
 
 GitHub's public-repository forks remain public, so this is an independent private repository retaining
 upstream history and an `upstream` remote. [UPSTREAM.md](UPSTREAM.md) preserves the original documentation.
@@ -16,7 +18,7 @@ upstream history and an `upstream` remote. [UPSTREAM.md](UPSTREAM.md) preserves 
   Conflicting heat-level and OFF writes now resolve to one OFF command. Unknown or stale seat feedback withholds commands.
 - Add **Vehicle → Comfort**: wheel heat, seat status, ventilation low/medium/high and seat-off buttons.
   Ventilation requires reported option 6 and valid feedback; wheel commands require a checked method and recognized
-  state from the existing, fingerprint-verified BCM listener. These additions still need functional testing.
+  state from the existing, fingerprint-verified BCM listener. The owner confirms ventilation and wheel heat work.
 - Add bounded, passive stock-touchscreen climate tracing and decoder-event logging. Filtered diagnostics can export to USB.
 - Request 5 fps for the discarded virtual cluster, reducing its advertised workload. This is an unverified freeze mitigation;
   the center display's frame rate is unchanged. No automatic decoder-recovery loop has been added.
@@ -53,6 +55,8 @@ The old checker also accepted invalid seat-state values, which is corrected here
 - Audio streams 14/13/11/12, maximum volume 45, and Launchpad preconditioning retain upstream assumptions.
   Volume-key interception, ADB keepalive and drive logging remain off by default.
 - Missing optional apps keep their rows to preserve the schema; their shortcuts have no action.
+- The battery-preconditioning switch requires the separate Launchpad / Precondition app. Diagnose a missing app,
+  rejected Start, or missing feedback using the [local offline collector](docs/PRECONDITIONING-DIAGNOSTICS.md).
 
 Primary interface references: [HMG vehicle commands](https://github.com/Open-HMG/HMG-API/blob/main/docs/vehicle-commands.md),
 [EV6 framework map](https://github.com/Open-HMG/HMG-API/blob/main/maps/kia/ev6/usa/260507/framework.json),

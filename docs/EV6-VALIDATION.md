@@ -44,7 +44,7 @@ listener fingerprint, existing-mod author identities, actual temperature values,
 ## Functional testing of ev6.1, reported through 2026-11-16
 
 The owner reports iOS 27.2, visible Themes, and working driver/passenger temperature, fan and SYNC commands.
-Kia's own controls can turn the seat heaters off. The new build has not yet been run on this vehicle.
+Kia's own controls can turn the seat heaters off. The table below records ev6.1 failures and the changes made for ev6.2.
 
 | Observation | Evidence and interpretation | ev6.2 action |
 |---|---|---|
@@ -59,6 +59,34 @@ Kia's own controls can turn the seat heaters off. The new build has not yet been
 
 The previous checker accepted `-1` seat values and did not require a valid live seat state in its seat verdict.
 Its initial YES for seat heat was therefore too broad. Version `1.1.0-ev6.2` corrects that logic.
+
+## Functional testing of ev6.2, 2026-11-16
+
+The owner confirms **seat ventilation, steering-wheel heating, range, odometer and battery percentage work**.
+This validates the new Comfort commands and corrected vehicle-row identities on the owner's EV6.
+The report does not yet establish seat-heater OFF behavior, recirculation OFF, freeze recovery or integrated radio tuning.
+
+Battery preconditioning did not work in the owner's test. A local collector then captured a verified
+`CVEV.USA.0000.V015.012.260507` snapshot over network ADB with HMG-API `1.1.0-rc.1`:
+
+- `pm list packages com.paytondev` succeeded with no package listings.
+- The mod's page initialization logged `no Launchpad`.
+- Its root helper logged `launchpad request none`; `cpc-precond-state` contained `none`.
+
+This establishes the immediate cause: neither supported Launchpad/Precondition app package is installed.
+The current CarPlay switch delegates to that service and silently does nothing if it cannot resolve it.
+The next step is the separate official app installation, followed by the app's normal eligibility checks;
+no new CarPlay vehicle-command mapping is indicated by this evidence.
+
+Direct USB diagnosis found no enumerated head-unit device. Network ADB later connected long enough to collect
+the first report; a second snapshot was interrupted when the connection ended. The earlier Applied screenshot
+showed `persist.adb.tcp.port` unset; the later captured ADB settings were `tcp:true, usb:true`.
+The skipped routing profiles for NEEV23/NEEV/CEEV are model-specific and expected on a CVEV unit.
+
+The car hotspot interrupts the laptop's internet connection. The owner requested a different approach, so the
+local collector is stopped and an unchanged official v2.0.0 USB installer is staged instead. Both installer
+ZIPs, the nested NEMESIS package and its APK match the official release SHA256 values. No app was installed remotely.
+See [PRECONDITIONING-DIAGNOSTICS.md](PRECONDITIONING-DIAGNOSTICS.md).
 
 ## Charging API leads
 
@@ -82,6 +110,7 @@ identifies `getBatSoc()` as **12 V battery SOC**. It is not substituted for the 
   appear in the published EV6 USA 260507 map. Head-unit script command checks pass.
 - USB export test verifies paths containing spaces, filtering of unrelated/handshake logs and retention of useful logs.
 
-These are host results. Native placement against a freshly retrieved OEM library, on-car control behavior,
-freeze recovery, audio routing and Apple Maps energy/charging calibration have not been validated for ev6.2.
+These are host results. See the later owner test above for the controls/readings now confirmed on the car.
+Native placement against a freshly retrieved OEM library, freeze recovery, audio routing, preconditioning,
+and Apple Maps energy/charging calibration have not been validated for ev6.2.
 Follow [INSTALL-EV6.md](INSTALL-EV6.md) for the next test and diagnostic capture.

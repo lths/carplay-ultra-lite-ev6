@@ -28,6 +28,7 @@ def main():
     parser.add_argument("--sdk", type=Path)
     args = parser.parse_args()
     run("Filtered USB log export", ["python3", ROOT / "tests/log_export_test.py"])
+    run("Offline preconditioning diagnostic", ["python3", ROOT / "tests/preconditioning_diagnostic_test.py"])
     with tempfile.TemporaryDirectory(prefix="ev6-tests-") as temporary:
         work = Path(temporary)
         native = work / "native-test"
