@@ -8,3 +8,4 @@ out/
 artifacts/
 check/cp-climate-check.jar
 check/report/
+logs/

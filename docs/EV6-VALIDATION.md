@@ -88,6 +88,47 @@ local collector is stopped and an unchanged official v2.0.0 USB installer is sta
 ZIPs, the nested NEMESIS package and its APK match the official release SHA256 values. No app was installed remotely.
 See [PRECONDITIONING-DIAGNOSTICS.md](PRECONDITIONING-DIAGNOSTICS.md).
 
+## Normal-startup capture, 2026-11-17
+
+The owner supplied `logs/report-20261117-1535.txt` and `logs/log-20261117-1535.txt` and confirms
+this was **normal startup, with no image freeze**. The runtime file contains 248 lines spanning about
+one minute; the report was saved at 15:36:55. Raw reports remain local and excluded from Git.
+
+The report identifies the US CVEV head unit, Android 4.4.2/API 19, and a **1920×720 display at 240 dpi**.
+Installed versions are HMG-API **1.1.0-rc.1**, Wireless **2.2.0-rc.1**, Ultra-Lite **1.3.3-ev6.2**,
+and the existing modified EV Routing **0.4.3-ioniq6.15**.
+
+| Observation | Evidence | Interpretation |
+|---|---|---|
+| Original target libraries match | Report lines 42 and 51 give the expected `libCarPlayCore.so` and `libiap2session.so` MD5 values. | On-disk stock bytes match. Stock markers do not mean the memory patches are absent. |
+| Rebuilt description is active | Runtime line 19 advertises a 79979-byte description; lines 34–42 show both vehicle-state connections and the phone's configuration request. | The ev6.2 native description and runtime protocol are being used. |
+| New page schema is present | Runtime lines 38 and 54–57 show 25 items and subscriptions to the fixed battery/range/odometer and Comfort IDs. | Consistent with the corrected page identities. Subscription alone does not test every action. |
+| Climate reads are valid | Runtime line 78 reports seats `2/2`, intake `2`, synchronized 68°F/20°C setpoints and a recognized unit. | Both seat readings are valid OFF states; no seat command is recorded. |
+| Live vehicle data continues | Runtime lines 98 and 241 report SOC 53.5%, range 163–164 km and odometer 92361.5 km. The range update is 101 mi at 163 km. | Getter values and distance conversion are operating during this baseline. |
+| Routing produces EV payloads | Repeated `native_send=0`, `live=1` and updated range values through line 248. | Host-side sending continues. This does not prove the iPhone's displayed routing values or battery-model calibration. |
+| Ultra auxiliary channels connect | Cluster port 7132, uiSync 7135 and vehicle-state ports 7130/7131 connect successfully. | A virtual-cluster stream exists; this remains separate from the physical driver's display. |
+
+The copied stock receiver text includes `Unsupported stream type 111/130`, but the mod reports successful
+setup and actual connections for those same auxiliary channels. Those strings alone do not establish a
+stream failure. The USB `MediaPrescanner` error names the exported text log, not a decoder failure.
+
+An actionable version-related observation appears at runtime lines 70–77: Bluetooth drops and the bridge
+reattaches iAP2 from component 4 to component 5 while wireless CarPlay remains up. The
+[Wireless rc.3 release](https://github.com/Open-HMG/hmgapi-wireless-cp-aa/releases/tag/v2.2.0-rc.3)
+changes this behavior to keep Bluetooth connected, addressing later session drops reported on some phones.
+This baseline does **not** show such a session drop or establish the cause of the owner's earlier visual freezes.
+Upstream also lists picture recovery after a freeze as unresolved.
+
+Wireless rc.3 is the narrower reliability update to test: its manifest does not add the new
+`libiap2session.so` identification patch, and its release supports HMG-API 1.1.0 release candidates.
+Wireless rc.4 instead requires HMG-API 1.1.0-rc.3+ and introduces shared identification; the existing routing
+identification patch must be addressed in that coordinated migration. No installed software was changed
+during this log review.
+
+This recording has no heater/ventilation/wheel/recirculation test writes, stock-touchscreen command trace,
+preconditioning attempt, Launchpad package inventory, or decoder failure callback. It adds normal-startup
+evidence; it does not resolve the still-unverified control and freeze cases or establish today's Launchpad installation state.
+
 ## Charging API leads
 
 The owner supplied names for EVSE/mains/OBC display power, battery energy sum, SOC, remaining charge time,
