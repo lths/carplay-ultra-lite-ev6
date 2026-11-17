@@ -64,7 +64,8 @@ Its initial YES for seat heat was therefore too broad. Version `1.1.0-ev6.2` cor
 
 The owner confirms **seat ventilation, steering-wheel heating, range, odometer and battery percentage work**.
 This validates the new Comfort commands and corrected vehicle-row identities on the owner's EV6.
-The report does not yet establish seat-heater OFF behavior, recirculation OFF, freeze recovery or integrated radio tuning.
+At this point the report did not establish seat-heater OFF behavior, recirculation OFF, freeze recovery or integrated radio tuning.
+The later November 17 control trace below adds seat-heater OFF evidence.
 
 Battery preconditioning did not work in the owner's test. A local collector then captured a verified
 `CVEV.USA.0000.V015.012.260507` snapshot over network ADB with HMG-API `1.1.0-rc.1`:
@@ -128,6 +129,54 @@ during this log review.
 This recording has no heater/ventilation/wheel/recirculation test writes, stock-touchscreen command trace,
 preconditioning attempt, Launchpad package inventory, or decoder failure callback. It adds normal-startup
 evidence; it does not resolve the still-unverified control and freeze cases or establish today's Launchpad installation state.
+
+## Control capture after software updates, 2026-11-17 at 16:24
+
+The next files, `logs/report-20261117-1624.txt` and `logs/log-20261117-1624.txt`, contain 304 runtime lines
+from 16:24:09 through 16:26:45. The installed software changed to **HMG-API 1.1.0-rc.3** and
+**Wireless 2.2.0-rc.4**. Ultra-Lite remains **1.3.3-ev6.2**, and EV Routing remains **0.4.3-ioniq6.15**.
+The on-disk target library hashes are unchanged.
+
+This trace provides actual phone-request → sent-command → vehicle-feedback evidence:
+
+| Control | Requests and commands | Vehicle acknowledgement | Runtime lines |
+|---|---|---|---|
+| Passenger seat heat | Levels 3, 2, 1, 0 send USM raw 8, 7, 6, 2. | BCM reports high (8), low (6), then OFF (2); CarPlay heating-on becomes false. The intermediate medium command is sent between polling samples, without its own sampled acknowledgement. | 79–104 |
+| Steering-wheel heat | ON/OFF requests send `wheel(1)` / `wheel(0)`. | The longer on/off cycle reports wheel 1 then 0, and the Vehicle status updates On then Off. | 117–136 |
+| Driver ventilation | Low sends `seat(213, 3)`; Off sends `seat(213, 2)`. | BCM driver state changes 3 then 2. | 138–149 |
+| Passenger ventilation | Low sends `seat(214, 3)`; Off sends `seat(214, 2)`. | BCM passenger state changes 3 then 2. | 151–162 |
+| Front defrost OFF | Heating level 0 sends `vr(10, 0, 0)`. | Front defrost changes from 1 to 0. Its ON command is not captured. | 26–42 |
+| Lower airflow on/off | Requests send blower modes 2 and 1. | Repeated reads return modes 2 and 1. | 45–66 |
+| Fan | Level 2 sends `vr(5, 3, 0)`. | Raw fan 3 is read back, matching the translated step. | 68–70 |
+| Driver temperature | 19.5°C sends the 67°F command. | Driver and synchronized passenger readings both become 67°F/19.5°C. | 72–75 |
+| Passenger temperature | 19°C and 19.5°C send passenger raw values 10 and 11. | Passenger reads 66°F then 67°F, and the car disengages SYNC when that zone changes independently. | 106–113 |
+
+BCM seat options are **6/6**, wheel feedback is recognized as **0/1**, and the original USM seat-state getters
+still return **-1/-1**. This directly supports preferring BCM feedback. The first three high-heat taps happen
+before the next read; after feedback arrives, the phone asks for lower levels and OFF. The original persistent
+stuck-at-high symptom is not present in this recorded passenger-seat sequence.
+
+One video callback occurs at **16:26:23.960**: `dipo.carplay.decode_failure [1]`. It follows the HMG-API shortcut
+request at 16:26:23.670 and successful activity launch at 16:26:23.690. The owner confirms CarPlay was working
+normally before opening HMG-API. The timing is consistent with an app/surface transition; the callback alone
+does not establish a spontaneous image freeze or define the meaning of error argument 1. Routing sends continue
+afterward, with no session-end event in this capture. No forced-key-frame or screen-timeout callback is recorded.
+
+At **16:26:08.340**, one **73861-byte** message fails the local OPACK decoder during Apple Maps route sharing.
+Subsequent route messages are decoded and the stream continues. The raw rejected payload and exception detail
+were not captured, so the exact cause cannot be reproduced from this text log. Host probes of the current codec
+successfully round-trip data at 65535, 65536, 73861 and 131072 bytes, plus a 224015-byte synthetic route; size alone
+does not reproduce the failure. This remains a protocol-decoding investigation, separate from the video callback.
+Route locations and addresses from the raw log are not included in this summary.
+
+The `CAR nothing to send` lines after Comfort controls reflect the separate page-action path: those controls
+already queued their commands. Similar messages for Apple Maps fields concern route metadata rather than climate
+actuation. There is no rejected vehicle transaction or `may not write` ID error in this capture.
+
+This trace does not exercise recirculation, ventilation medium/high, driver seat heat, rear defrost or preconditioning.
+It contains no stock-touchscreen trace and does not establish whether the new shared identity serializer is active;
+the unchanged routing/Ultra-Lite consumers have not been migrated to the API. No installed software or runtime code
+was changed during this review.
 
 ## Charging API leads
 

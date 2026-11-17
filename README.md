@@ -4,7 +4,8 @@ Private development copy for a **2024 Kia EV6, Gen5W USA firmware 260507**. Curr
 **1.3.3-ev6.2**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
 Requires working wireless CarPlay, **HMG-API 1.1.0-rc.1 or later**, and the existing theme-enabled routing dependency.
 The owner uses iOS 27.2 and confirms **ventilation, wheel heat, range, odometer and battery percentage work**
-on ev6.2. Battery preconditioning was traced to the separate Launchpad / Precondition app being absent;
+on ev6.2. The November 17 control trace also confirms passenger seat-heat OFF, wheel on/off, and low ventilation
+on/off for both front seats through vehicle feedback. Battery preconditioning was traced to the separate Launchpad / Precondition app being absent;
 see the [diagnostic finding and USB installation path](docs/PRECONDITIONING-DIAGNOSTICS.md).
 
 GitHub's public-repository forks remain public, so this is an independent private repository retaining
