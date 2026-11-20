@@ -52,10 +52,12 @@ public class VsChannelTest {
         check("the phone got its reply and the answers", p.waitFor() == 0);
         Thread.sleep(500);
         String l = log.toString();
-        check("sync logged with the inner message decoded",
-                l.contains("sync/comm") && l.contains("\"command\": \"follow\"") && l.contains("\"iids\": [520, 534, 525]"));
-        check("async logged", l.contains("asyn/comm") && l.contains("\"command\": \"read\""));
-        check("a 20 KB body over two frames arrives whole", l.contains("<20000 bytes"));
+        check("sync log reuses decoded structure without rendering IID values",
+                l.contains("sync/comm") && l.contains("command=follow") && l.contains("iids:list(3)") && !l.contains("[520, 534, 525]"));
+        check("async logged", l.contains("asyn/comm") && l.contains("command=read"));
+        check("a malformed 20 KB payload over two frames arrives whole and reports its failing layer",
+                l.contains("layer=pluginData packetBytes=20025 dataBytes=20000") && l.contains("trailing bytes offset=9")
+                        && !l.contains("xxxxxxxxxxxxxxxxxxxx"));
         check("a fresh vehicle state for the session", l.contains("VS0 new session"));
         check("the write logged by name", l.contains("phone set driverTargetTemperature to 22.5"));
         check("closed cleanly", l.contains("closed by the phone after 5 message(s)"));

@@ -79,6 +79,7 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     final VsChannel[] lanes;
     final VsChannel.Log out;
     private final CarPlayMedia media;
+    private final VideoContext video;
     final VehiclePage page = new VehiclePage();
     private final Map<String, Intent> screens = new LinkedHashMap<String, Intent>();
     private final LinkedBlockingQueue<Runnable> work = new LinkedBlockingQueue<Runnable>();
@@ -176,7 +177,7 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     }
 
     /** the car's section is named after the model the head unit reports */
-    CarVehicle(Context context, File dir, VehicleState[] state, VsChannel[] lanes, VsChannel.Log out, String version, CarPlayMedia media) {
+    CarVehicle(Context context, File dir, VehicleState[] state, VsChannel[] lanes, VsChannel.Log out, String version, CarPlayMedia media, VideoContext video) {
         super("cp-climate-vehicle");
         this.context = context;
         this.dir = dir;
@@ -184,6 +185,7 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
         this.lanes = lanes;
         this.out = out;
         this.media = media;
+        this.video = video;
         setDaemon(true);
         String product = "";
         try {
@@ -247,10 +249,13 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
                 if (climate != null && climate.comfortPressed(id)) return;
                 Intent i = screens.get(id);
                 if (i == null) return;
+                VideoContext.Opening opening = video.opening(id, i.getComponent() == null ? i.getPackage() : i.getComponent().getPackageName());
                 try {
                     context.startActivity(new Intent(i).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    video.opened(opening, true);
                     out.log("VEH opened " + id);
                 } catch (Throwable t) {
+                    video.opened(opening, false);
                     out.log("VEH " + id + " didn't open: " + t);
                 }
             }

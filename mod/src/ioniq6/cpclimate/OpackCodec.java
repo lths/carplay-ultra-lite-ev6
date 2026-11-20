@@ -43,8 +43,27 @@ final class OpackCodec {
     // ---- decode ----
 
     private final byte[] buf;
-    private int at, depth;
+    private int at, depth, tagAt = -1;
     private final List<Object> seen = new ArrayList<Object>();
+
+    /** Offsets are relative to the buffer passed to decode; no payload bytes are retained. */
+    static final class DecodeException extends IllegalArgumentException {
+        final String reason;
+        final int offset, tagOffset, tag;
+
+        DecodeException(String reason, int offset, int tagOffset, int tag) {
+            super(reason + " offset=" + offset + " tag=" + (tag < 0 ? "EOF" : "0x" + Integer.toHexString(tag))
+                    + " tagOffset=" + tagOffset);
+            this.reason = reason;
+            this.offset = offset;
+            this.tagOffset = tagOffset;
+            this.tag = tag;
+        }
+    }
+
+    private DecodeException failure(String reason) {
+        return new DecodeException(reason, at, tagAt, tagAt >= 0 && tagAt < buf.length ? buf[tagAt] & 0xff : -1);
+    }
 
     private OpackCodec(byte[] buf) {
         this.buf = buf;
@@ -52,25 +71,29 @@ final class OpackCodec {
 
     /** buf as one value; IllegalArgumentException if it isn't exactly one OPACK value */
     static Object decode(byte[] buf) {
+        if (buf == null) throw new DecodeException("null buffer", 0, 0, -1);
+        OpackCodec d = new OpackCodec(buf);
         try {
-            OpackCodec d = new OpackCodec(buf);
             Object v = d.value();
-            if (d.at != buf.length) throw new IllegalArgumentException("trailing bytes");
+            if (d.at != buf.length) {
+                d.tagAt = d.at;
+                throw d.failure("trailing bytes");
+            }
             return v;
-        } catch (IllegalArgumentException e) {
+        } catch (DecodeException e) {
             throw e;
         } catch (RuntimeException e) {
-            throw new IllegalArgumentException(e.toString());
+            throw d.failure("decoder " + e.getClass().getSimpleName());
         }
     }
 
     private int take() {
-        if (at >= buf.length) throw new IllegalArgumentException("short");
+        if (at >= buf.length) throw failure("unexpected end");
         return buf[at++] & 0xff;
     }
 
     private byte[] take(int n) {
-        if (n < 0 || at + n > buf.length) throw new IllegalArgumentException("short");
+        if (n < 0 || n > buf.length - at) throw failure("short value");
         byte[] b = java.util.Arrays.copyOfRange(buf, at, at + n);
         at += n;
         return b;
@@ -86,7 +109,7 @@ final class OpackCodec {
         int n = tag - base;
         if (n <= 0x20) return n;
         long v = unsigned(n - 0x20);
-        if (v < 0 || v > buf.length) throw new IllegalArgumentException("length");
+        if (v < 0 || v > buf.length) throw failure("invalid length " + v);
         return (int) v;
     }
 
@@ -96,11 +119,15 @@ final class OpackCodec {
     }
 
     private Object value() {
-        if (++depth > 64) throw new IllegalArgumentException("deep");
+        int parentTag = tagAt;
+        tagAt = at;
+        ++depth;
         try {
+            if (depth > 64) throw failure("nesting limit 64");
             return item();
         } finally {
             depth--;
+            tagAt = parentTag;
         }
     }
 
@@ -142,11 +169,11 @@ final class OpackCodec {
             }
             return m;
         }
-        throw new IllegalArgumentException("tag 0x" + Integer.toHexString(tag));
+        throw failure("unsupported tag");
     }
 
     private Object ref(int i) {
-        if (i < 0 || i >= seen.size()) throw new IllegalArgumentException("ref " + i);
+        if (i < 0 || i >= seen.size()) throw failure("invalid reference " + i + " seen=" + seen.size());
         return seen.get(i);
     }
 

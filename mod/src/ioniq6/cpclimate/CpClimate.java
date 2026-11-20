@@ -33,7 +33,7 @@ public final class CpClimate extends ModEntry {
     /** left in DiPO's files folder at each CarPlay session when adb_keepalive is on; svc/helper.sh acts on it */
     static final String ADB_REQUEST = "cpc-adb-req";
     /** shown on the Vehicle page; keep in step with mod.json */
-    static final String VERSION = "1.3.3-ev6.3";
+    static final String VERSION = "1.3.3-ev6.4";
     static final String GUARD_FILE = "cp-climate-guard";
     static final int GUARD_STARTS = 2;
     static final long GUARD_MS = 10 * 60 * 1000L;
@@ -67,6 +67,18 @@ public final class CpClimate extends ModEntry {
         StockTrace.install(m, app);
         if (!DIPO.equals(app.packageName)) return;
         mod = m;
+        final android.content.Context context = app.context;
+        final VideoContext video = new VideoContext(new VideoContext.Clock() {
+            @Override public long now() { return android.os.SystemClock.elapsedRealtime(); }
+        }, new VideoContext.Foreground() {
+            @Override public String topPackage() {
+                android.app.ActivityManager am = context == null ? null
+                        : (android.app.ActivityManager) context.getSystemService(android.content.Context.ACTIVITY_SERVICE);
+                List<android.app.ActivityManager.RunningTaskInfo> tasks = am == null ? null : am.getRunningTasks(1);
+                return tasks == null || tasks.isEmpty() || tasks.get(0).topActivity == null
+                        ? null : tasks.get(0).topActivity.getPackageName();
+            }
+        });
         File dir = app.context != null ? app.context.getFilesDir() : new File("/data/data/" + DIPO + "/files");
         final File filesDir = dir;
         guard = new File(dir, GUARD_FILE);
@@ -122,7 +134,7 @@ public final class CpClimate extends ModEntry {
                 VehiclePage.tiles = "off";
                 CarVehicle.driveLog = m.settingBoolean("drive_log", false);
                 try {
-                    CarVehicle vehicle = new CarVehicle(app.context, dir, state, lanes, log, VERSION, media);
+                    CarVehicle vehicle = new CarVehicle(app.context, dir, state, lanes, log, VERSION, media, video);
                     VehicleState.page = vehicle.page;
                     vehicle.start();
                 } catch (Throwable t) {
@@ -160,6 +172,7 @@ public final class CpClimate extends ModEntry {
             @Override
             protected void afterHookedMethod(Param p) {
                 IapBridge.carPlay = p.thisObject;
+                video.session(true);
                 if (media != null) media.started(p.thisObject, mod.settingBoolean("resume_carplay_audio", true));
                 copyLater(COPY_DELAY_MS, false);
                 // test aid (setting adb_keepalive): CarPlay connecting takes the USB port from adb; the root
@@ -176,6 +189,7 @@ public final class CpClimate extends ModEntry {
             @Override
             protected void afterHookedMethod(Param p) {
                 if (media != null) media.ended(p.thisObject);
+                video.session(false);
                 copyLater(COPY_DELAY_MS, false);
             }
         });
@@ -188,7 +202,7 @@ public final class CpClimate extends ModEntry {
                     protected void beforeHookedMethod(Param p) {
                         try {
                             if (videoLines.getAndIncrement() < 160)
-                                mod.log("VIDEO " + point + " " + java.util.Arrays.toString(p.args));
+                                mod.log("VIDEO " + point + " " + java.util.Arrays.toString(p.args) + " " + video.describe());
                         } catch (Throwable ignored) { /* Logging must never interrupt the stock decoder. */ }
                     }
                 });

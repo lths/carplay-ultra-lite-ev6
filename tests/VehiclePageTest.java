@@ -190,6 +190,8 @@ public class VehiclePageTest {
                 toCar.add(written);
             }
         };
+        vs.handle(0, ask("writeRequest", VehicleState.dict(home, VehiclePage.PERFORM)));
+        check("a page-only button action never forwards an empty climate write", toCar.isEmpty());
         did.clear();
         Map<Object, Object> both = new LinkedHashMap<Object, Object>();
         both.put(lights, Boolean.FALSE);

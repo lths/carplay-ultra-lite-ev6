@@ -57,6 +57,7 @@ final class VehicleState {
     static final long HOLD_MS = 2500;
 
     final VsChannel.Log out;
+    private int decodeErrors;
     volatile Car car;
     /** when the session that made this state started (the second lane joins within VsChannel.SESSION_PAIRING_MS) */
     volatile long startedAt;
@@ -197,12 +198,17 @@ final class VehicleState {
     }
 
     synchronized List<Out> handle(int lane, byte[] message) {
+        return handle(lane, message, null);
+    }
+
+    /** Packet logging reuses these decoded objects; the stream must not pretty-decode a second time. */
+    synchronized List<Out> handle(int lane, byte[] message, String logPrefix) {
         List<Out> answers = new ArrayList<Out>();
         Object outer;
         try {
             outer = OpackCodec.decode(message);
         } catch (IllegalArgumentException e) {
-            out.log("VS a " + message.length + " B message is not OPACK");
+            decodeFailure(lane, "outer", message.length, message.length, e);
             return answers;
         }
         Long plugin = OpackCodec.asLong(get(outer, "pluginID"));
@@ -211,9 +217,11 @@ final class VehicleState {
             try {
                 request = OpackCodec.decode((byte[]) get(outer, "pluginData"));
             } catch (IllegalArgumentException e) {
-                // dropped below
+                decodeFailure(lane, "pluginData", message.length, ((byte[]) get(outer, "pluginData")).length, e);
+                return answers;
             }
         }
+        if (logPrefix != null) out.log(logPrefix + ": " + OpackSummary.message(outer, request, names));
         if (request == null || plugin == null || plugin != PLUGIN_ID) {
             out.log("VS message for plugin " + plugin + " without readable data, dropped");
             return answers;
@@ -238,9 +246,16 @@ final class VehicleState {
         } else if ("controlRequest".equals(command)) {
             answers.add(new Out(lane, wrap(control(map(given), transaction))));
         } else {
-            out.log("VS phone sent " + (command == null ? "no command" : "\"" + command + "\"") + ", not handled");
+            out.log("VS phone sent " + (command == null ? "no command" : "an unknown command (name omitted)") + ", not handled");
         }
         return answers;
+    }
+
+    private void decodeFailure(int lane, String layer, int packetBytes, int dataBytes, IllegalArgumentException error) {
+        if (decodeErrors++ < 32)
+            out.log("VS OPACK lane=" + lane + " layer=" + layer + " packetBytes=" + packetBytes + " dataBytes=" + dataBytes
+                    + " is not OPACK: " + error.getMessage());
+        else if (decodeErrors == 33) out.log("VS OPACK further parse errors suppressed for this session");
     }
 
     /**
@@ -348,7 +363,7 @@ final class VehicleState {
                 sent.put(iid, e.getValue());
                 heldSince.put(iid, now);
             }
-            c.phoneWrote(sent, new TreeMap<Long, Object>(values));
+            if (!sent.isEmpty()) c.phoneWrote(sent, new TreeMap<Long, Object>(values));
         }
         List<Out> answers = new ArrayList<Out>();
         answers.add(new Out(lane, wrap(dict("command", "writeResponse", "transactionID", transaction, "errors", results))));
@@ -543,9 +558,8 @@ final class VehicleState {
 
     static String shown(Object v) {
         if (v instanceof byte[]) return ((byte[]) v).length + " B";
-        if (v instanceof List && ((List<?>) v).size() > 4) return ((List<?>) v).size() + " items";
         if (v == null) return "null";
-        if (v instanceof Map || v instanceof List) return Opack.show(OpackCodec.encode(v));
+        if (v instanceof Map || v instanceof List || v instanceof String) return OpackSummary.shape(v);
         return String.valueOf(v);
     }
 

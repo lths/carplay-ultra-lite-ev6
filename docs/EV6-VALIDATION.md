@@ -220,6 +220,35 @@ compilation, native/runtime schema equality and firmware mismatch guards. HMG SD
 checks pass. The rebuilt segment is 95,639 bytes with an 80,002-byte Vehicle description; the original stock
 guards, patch sites and all 33 bindings are preserved. These checks do not establish on-car playback.
 
+## Diagnostic improvements, 2026-11-19 (ev6.4)
+
+The owner requested four improvements after the normal-startup and HMG-API-transition captures:
+
+- Vehicle-state packet logging now reuses the outer and pluginData objects decoded by the handler. It lists
+  at most eight schema fields per map, with types/counts/sizes. It never traverses nested route values.
+  Per-field log formatting also avoids re-encoding and pretty-decoding maps/lists and omits string contents.
+  Unknown command and field-name contents are withheld. Numeric/boolean climate diagnostics remain readable.
+- OPACK failures include lane, outer/pluginData layer, packet/data sizes, reason, cursor offset, tag byte and
+  tag offset. Offsets are relative to that layer's buffer. At most 32 parse failures plus one suppression notice
+  are logged per VehicleState session. These structured failures are included in the filtered USB export.
+- Existing video observers add session state and an Android foreground-task snapshot, plus the last Vehicle
+  shortcut's target, requested/opened/failed status and elapsed age. “Recent” means within ten seconds.
+  The app-switch marker is recorded before startActivity, so a decoder callback during the transition is visible.
+  A denied task query produces unknown visibility. The snapshot cannot establish actual frame progress, and
+  launches outside this mod's shortcuts have no shortcut timestamp. No polling or recovery loop is added.
+- Page-only writes no longer invoke the climate callback with an empty map. The generic “CAR nothing to send”
+  message is removed for metadata/non-climate writes; successful actions still receive the same protocol reply.
+
+All host checks pass. New checks cover a synthetic 4,000-point route with private-value sentinels, constant
+work on nested-list summaries, bounded field listing, parser failure offsets/tags, the 65,535/65,536/73,861-byte
+boundaries, nested decode failures and error-log limits. Video-context cases and the page-only callback
+regression pass. An independent encrypted phone simulator verifies sync replies, climate write responses and
+notifications after a malformed 20 KB nested payload spans multiple transport frames.
+
+The exact rejected 73,861-byte payload from the owner's earlier capture is unavailable. This change supplies
+future diagnostics; it does not establish that packet's cause or claim a spontaneous-freeze repair. New logs
+need an on-car check. ev6.3 audio resume, vehicle command mappings, native guards and listener checks are retained.
+
 ## Host validation of ev6.2
 
 - Native hook behavior, climate mapping, session pairing, firmware mismatch guards, Vehicle-page updates/actions,

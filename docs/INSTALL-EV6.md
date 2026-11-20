@@ -1,20 +1,21 @@
-# EV6 ev6.3 update and test
+# EV6 ev6.4 update and test
 
-For the owner's existing installation, use **cp-climate-1.3.3-ev6.3-usb.zip**.
-This updates CarPlay Ultra-Lite only. The audio-resume change needs an on-car test; the working ev6.2 climate mappings are retained.
+For the owner's existing installation, use **cp-climate-1.3.3-ev6.4-usb.zip**.
+This updates CarPlay Ultra-Lite only. It adds route/OPACK/video diagnostics and quieter page-action logging.
+The working climate mappings and ev6.3 audio-resume path are retained; audio acceptance and freeze diagnosis still need on-car testing.
 
 ## Update
 
 1. Confirm HMG-API is **1.1.0-rc.1 or later**. The new video observer hooks require that version.
 2. Unzip the update USB ZIP. Copy **HMGAPI** and **CarPlayUltraLite-Logs** to the USB stick root.
-3. In HMG-API, select **Check USB updates**, install **CarPlay Ultra-Lite 1.3.3-ev6.3**, apply and restart the unit.
+3. In HMG-API, select **Check USB updates**, install **CarPlay Ultra-Lite 1.3.3-ev6.4**, apply and restart the unit.
    Keep the working official wireless mod and the existing theme-enabled routing mod enabled.
 4. Keep **CarPlay Ultra** on in this mod and the matching **CarPlay theme** on in the routing mod.
 5. Reconnect CarPlay. Remove the installation USB stick while establishing wireless CarPlay.
    If the Vehicle page still labels the shortcut **Radio**, forget the car on both the head unit and the iPhone
    (**Settings → General → CarPlay**, plus Bluetooth), then pair again to refresh the cached page description.
    The old Radio action identifier is retained and also requests CarPlay audio after this update.
-6. Check the version under CarPlay's **Vehicle → Head unit** section: **1.3.3-ev6.3**.
+6. Check the version under CarPlay's **Vehicle → Head unit** section: **1.3.3-ev6.4**.
 
 The update uses the same private author key as ev6.1, UUID `51951394-274a-8d4b-8396-c831913a9a44`.
 Do not uninstall that existing private mod to update it. An upstream copy signed by another author cannot
@@ -59,7 +60,14 @@ there is deliberately no automatic Play/Pause toggle fallback or repeated retry.
    the problem. The root helper copies a recent filtered log to **CarPlayUltraLite-Logs/ev6-carplay.log**.
    Remove the stick and share that file. It excludes receiver handshakes and unrelated mods.
 
-Useful lines start with **CAR seat feedback**, **VS phone set**, **CAR sent**, **STOCK**, **VIDEO**, **MEDIA**, or **VEH**.
+Useful lines start with **CAR seat feedback**, **VS phone set**, **CAR sent**, **STOCK**, **VIDEO**, **MEDIA**, **VS OPACK**, or **VEH**.
+New `VS OPACK` failures identify the lane and layer, byte counts, reason, cursor offset and tag location.
+Offsets are relative to the named outer or pluginData buffer; no payload bytes are exported.
+`VIDEO` events include the foreground package, a CarPlay-visibility estimate and the last Vehicle-shortcut
+launch's result and age. `carplayVisible` uses Android's foreground-task snapshot, so it cannot prove that
+video frames are updating. `lastVehicleLaunch` covers this mod's shortcuts; other app launches have no recorded
+shortcut timestamp. If the task snapshot is unavailable, visibility is `unknown`.
+
 The export is a recent log snapshot, not a complete session recording; collect it soon after the test.
 If no file appears, use HMG-API → Mods → CarPlay Ultra-Lite → Log, or Logs → Mods → Refresh; photos remain useful.
 The old compatibility Markdown report is not required to proceed.
@@ -71,7 +79,7 @@ to the 12 V battery and is not used for traction-battery percentage.
 ## Complete install bundle
 
 For an installation missing the theme dependency, the alternative
-**carplay-ultra-lite-ev6-1.3.3-ev6.3-install-usb.zip** contains the private mod and the original signed
+**carplay-ultra-lite-ev6-1.3.3-ev6.4-install-usb.zip** contains the private mod and the original signed
 **E-GMP CarPlay EV Routing 0.4.3-ioniq6.15**, plus that routing build's source and notices.
 Install routing first, then CarPlay Ultra-Lite. Its Ioniq 6 suffix also lists EV6 USA 260507 in its signed profiles.
 Routing author UUID: `4bec7579-9d68-8e3c-b667-2804d05a20b9`.

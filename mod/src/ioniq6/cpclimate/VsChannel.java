@@ -29,7 +29,6 @@ final class VsChannel extends Thread {
     /** the real car (CarClimate), attached to each session's VehicleState; null in tests without one */
     static volatile VehicleState.Car car;
     static final int MAX_LOGGED = 200;
-    static final int MAX_TEXT = 1500;
 
     /** where the log goes: CpClimate's ModContext on the car, stdout in tests */
     interface Log {
@@ -204,9 +203,10 @@ final class VsChannel extends Thread {
                     long token = (long) be32(p, at + 20) << 32 | (be32(p, at + 24) & 0xffffffffL);
                     byte[] body = java.util.Arrays.copyOfRange(p, at + HEADER, at + size);
                     if (kind == SYNC) w.send(pack(REPLY, 0, token, new byte[0]));
-                    if (logged++ < MAX_LOGGED) out.log("VS" + lane + " " + tag(kind) + "/" + tag(type) + " " + body.length + " B: " + text(body));
+                    String logPrefix = logged++ < MAX_LOGGED ? "VS" + lane + " " + tag(kind) + "/" + tag(type) + " " + body.length + " B" : null;
                     VehicleState vs = state[0];
-                    if (kind != REPLY && vs != null) deliver(vs.handle(lane, body));
+                    if (kind != REPLY && vs != null) deliver(vs.handle(lane, body, logPrefix));
+                    else if (logPrefix != null) out.log(logPrefix); // replies need no decode just for logging
                     at += size;
                 }
                 plain.reset();
@@ -253,12 +253,6 @@ final class VsChannel extends Thread {
         put32(p, 24, (int) token);
         System.arraycopy(body, 0, p, HEADER, body.length);
         return p;
-    }
-
-    static String text(byte[] body) {
-        String s = body.length > 0 ? Opack.show(body) : "";
-        if (s == null) s = "<" + body.length + " bytes, not OPACK>";
-        return s.length() > MAX_TEXT ? s.substring(0, MAX_TEXT) + "..." : s;
     }
 
     static String tag(int v) {

@@ -1,7 +1,7 @@
 # CarPlay Ultra-Lite for EV6
 
 Private development copy for a **2024 Kia EV6, Gen5W USA firmware 260507**. Current test version:
-**1.3.3-ev6.3**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
+**1.3.3-ev6.4**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
 Requires working wireless CarPlay, **HMG-API 1.1.0-rc.1 or later**, and the existing theme-enabled routing dependency.
 The owner uses iOS 27.2 and confirms **ventilation, wheel heat, range, odometer and battery percentage work**
 on ev6.2. The November 17 control trace also confirms passenger seat-heat OFF, wheel on/off, and low ventilation
@@ -10,6 +10,20 @@ see the [diagnostic finding and USB installation path](docs/PRECONDITIONING-DIAG
 
 GitHub's public-repository forks remain public, so this is an independent private repository retaining
 upstream history and an `upstream` remote. [UPSTREAM.md](UPSTREAM.md) preserves the original documentation.
+
+## Changes in ev6.4
+
+- Reuse decoded vehicle-state messages for bounded field/type/size summaries. Remove the second pretty-decode
+  and nested route serialization from logging; route addresses, coordinates and app text are omitted.
+- Report OPACK failures with lane, outer/pluginData layer, packet and data sizes, reason, cursor offset,
+  tag and tag offset. Offsets refer to the named layer's buffer; repeated failures are capped per session.
+- Add session state, foreground package and recent Vehicle-shortcut launch context to the existing bounded
+  video-event log. A denied foreground query is unknown. Pending, opened and failed launches are distinguished.
+- Skip empty climate callbacks after page-only actions and remove the misleading “nothing to send” message.
+  Accepted control values, response messages, climate mappings and receiver recovery behavior are retained.
+
+These are diagnostic changes. They do not identify the old 73,861-byte packet's failure or repair spontaneous
+video freezes without a new on-car capture. Native changes only refresh the embedded version label.
 
 ## Changes in ev6.3
 
@@ -48,9 +62,9 @@ The rebuilt native segment retains every original stock verify/patch directive a
 
 ## Install and test
 
-For the existing installation, use **`cp-climate-1.3.3-ev6.3-usb.zip`** from the private release.
+For the existing installation, use **`cp-climate-1.3.3-ev6.4-usb.zip`** from the private release.
 Keep the existing wireless and theme-enabled routing mods. See [installation and test steps](docs/INSTALL-EV6.md).
-The complete `carplay-ultra-lite-ev6-1.3.3-ev6.3-install-usb.zip` also carries the unchanged signed routing dependency
+The complete `carplay-ultra-lite-ev6-1.3.3-ev6.4-install-usb.zip` also carries the unchanged signed routing dependency
 and its source for an installation that needs it. The checker USB ZIP is optional for this car.
 
 The owner's evidence and unresolved issues are recorded in [EV6-VALIDATION.md](docs/EV6-VALIDATION.md).
@@ -94,9 +108,10 @@ python3 tools/rebuild_segment.py --zig /path/to/zig
 python3 tools/test.py --android-jar /path/to/android.jar --sdk /path/to/hmgapi-sdk
 python3 tools/package.py mod --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
 python3 tools/package.py check --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
-python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.3.zip --sdk /path/to/hmgapi-sdk
+python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.4.zip --sdk /path/to/hmgapi-sdk
 ```
 
+`test.py` also uses Python `cryptography` for the independent encrypted transport test.
 `rebuild_segment.py` needs clang, Zig's linker and pyelftools. It reuses pinned stock bindings and guards;
 it cannot port another stock library. That still requires its stock file and the original `tools/build.py` workflow.
 Tool versions and checksums are in [tools/toolchain.json](tools/toolchain.json).

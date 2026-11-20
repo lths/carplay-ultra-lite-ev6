@@ -210,8 +210,7 @@ final class CarClimate extends Thread implements VehicleState.Car {
                 if (i.next().kind == ClimateMap.REAR) i.remove();
         }
         CarAudio audio = CarAudio.instance;
-        boolean forAudio = audio != null && audio.phoneWrote(written);
-        if (list.isEmpty() && !forAudio) out.log("CAR nothing to send for " + written.keySet());
+        if (audio != null) audio.phoneWrote(written);
         commands.addAll(list);
     }
 
