@@ -38,13 +38,14 @@ def main():
         run("Native hooks", [native])
         classes = work / "classes"
         classes.mkdir()
-        names = ["Bplist", "ChaChaPoly", "ClimateMap", "Opack", "OpackCodec", "OpackSummary", "VehiclePage", "VehicleDescription", "VehicleState", "VsChannel", "VsData", "CarApi", "CarPlayMedia", "VideoContext", "ParkedState", "VideoStreamSink"]
+        names = ["Bplist", "ChaChaPoly", "ClimateMap", "Opack", "OpackCodec", "OpackSummary", "VehiclePage", "VehicleDescription", "VehicleState", "VsChannel", "VsData", "CarApi", "CarPlayMedia", "VideoContext", "ParkedState", "VideoStreamSink", "ChargingData", "VehicleEvents", "FreshAirProfile"]
         sources = [SRC / (name + ".java") for name in names]
-        tests = ["ClimateMapTest", "SessionPairTest", "CompatibilityTest", "CarPlayMediaTest", "DiagnosticsTest", "VideoContextTest", "VsChannelTest", "ForkImprovementsTest", "ParkedStateTest", "VideoStreamSinkTest"]
+        tests = ["ClimateMapTest", "SessionPairTest", "CompatibilityTest", "CarPlayMediaTest", "DiagnosticsTest", "VideoContextTest", "VsChannelTest", "ForkImprovementsTest", "ParkedStateTest", "VideoStreamSinkTest", "EnergyAndIntakeTest"]
         sources += [ROOT / "tests" / (name + ".java") for name in tests]
         sources += [ROOT / "check/src/ioniq6/cpclimate/check/Main.java", ROOT / "tests/CheckReportTest.java"]
         run("Compile host Java and checker", ["javac", "--release", "8", "-d", classes, *sources])
         run("Climate map", ["java", "-cp", classes, "ioniq6.cpclimate.ClimateMapTest"])
+        run("Charging, real events and learned fresh-air profiles", ["java", "-cp", classes, "ioniq6.cpclimate.EnergyAndIntakeTest", work])
         run("Passive connection and manual media controls", ["java", "-cp", classes, "ioniq6.cpclimate.CarPlayMediaTest"])
         run("OPACK diagnostics and route privacy", ["java", "-cp", classes, "ioniq6.cpclimate.DiagnosticsTest"])
         run("Video event context", ["java", "-cp", classes, "ioniq6.cpclimate.VideoContextTest"])
@@ -82,11 +83,12 @@ def main():
             full.mkdir()
             sdk = args.sdk.resolve() / "lib"
             cp = os.pathsep.join(str(p.resolve()) for p in (args.android_jar, sdk / "hmgapi-runtime.jar", sdk / "hmgapi-runtime-stubs.jar"))
-            extra = [ROOT / "tests/VehiclePageTest.java", ROOT / "tests/AudioNoticeTest.java", ROOT / "tests/VideoMessagesTest.java", ROOT / "tools/MkVspi.java"]
+            extra = [ROOT / "tests/VehiclePageTest.java", ROOT / "tests/AudioNoticeTest.java", ROOT / "tests/VideoMessagesTest.java", ROOT / "tests/ChargingReaderTest.java", ROOT / "tools/MkVspi.java"]
             run("Compile all mod sources", ["javac", "--release", "8", "-cp", cp, "-d", full, *SRC.glob("*.java"), *extra])
             runtime = str(full) + os.pathsep + cp
             run("Vehicle page", ["java", "-cp", runtime, "ioniq6.cpclimate.VehiclePageTest"])
             run("Audio and notices", ["java", "-cp", runtime, "ioniq6.cpclimate.AudioNoticeTest"])
+            run("OEM charging adapter and parked charge port", ["java", "-cp", runtime, "ioniq6.cpclimate.ChargingReaderTest"])
             run("Video command protocol and privacy", ["java", "-cp", runtime, "ioniq6.cpclimate.VideoMessagesTest"])
             generated = subprocess.run(["java", "-cp", runtime, "ioniq6.cpclimate.MkVspi", "EV6"],
                     cwd=ROOT, capture_output=True, check=True, timeout=60)

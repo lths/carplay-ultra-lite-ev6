@@ -3,6 +3,7 @@ package ioniq6.cpclimate;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.Parcel;
+import java.io.File;
 
 import java.util.List;
 import java.util.Map;
@@ -63,6 +64,10 @@ final class CarClimate extends Thread implements VehicleState.Car {
     final VehicleState[] state;
     final VsChannel[] lanes;
     final VsChannel.Log out;
+    final File dir;
+    final String product = IntakeLearning.product();
+    final int frontIntake = IntakeLearning.frontSelector();
+    private volatile int intakeState = -1;
     private IBinder datc;
     private final Temperatures temps = new Temperatures();
     private int failures;
@@ -154,17 +159,22 @@ final class CarClimate extends Thread implements VehicleState.Car {
         }
     }
 
-    CarClimate(VehicleState[] state, VsChannel[] lanes, VsChannel.Log out) {
+    CarClimate(VehicleState[] state, VsChannel[] lanes, VsChannel.Log out, File dir) {
         super("cp-climate-car");
         this.state = state;
         this.lanes = lanes;
         this.out = out;
+        this.dir = dir;
         setDaemon(true);
         instance = this;
     }
 
     /** Explicit Vehicle-page ventilation controls, using the same documented USM step as the stock climate app. */
     boolean comfortPressed(String id) {
+        if ("fresh_air".equals(id) || "recirc_air".equals(id)) {
+            commands.add(new ClimateMap.Command(ClimateMap.INTAKE, "recirc_air".equals(id) ? 1 : 0, 0, 0));
+            return true;
+        }
         boolean driver = id.startsWith("driver_"), passenger = id.startsWith("passenger_");
         if (!driver && !passenger) return false;
         boolean off = id.endsWith("_seat_off");
@@ -194,6 +204,9 @@ final class CarClimate extends Thread implements VehicleState.Car {
         values.put("passenger_seat_status", ClimateMap.seatText(seatFeedbackFresh() ? passengerSeatState : -1) + (passengerSeatOption == 6 ? "" : " (ventilation unavailable)"));
         values.put("wheel_heat_status", body.wheel == 0 ? "Off" : body.wheel == 1 ? "On" : "State unavailable (control withheld)");
         if (body.wheel == 0 || body.wheel == 1) values.put("wheel_heat", body.wheel == 1);
+        values.put("intake_status", intakeState == 1 ? "Recirculating" : intakeState == 2 ? "Fresh air" : "State unavailable");
+        values.put("fresh_air_setup", FreshAirProfile.read(dir, product, frontIntake) != null ? "Kia command learned"
+                : "Use Kia recirculation ON, then OFF once to learn fresh air");
         return values;
     }
 
@@ -240,6 +253,31 @@ final class CarClimate extends Thread implements VehicleState.Car {
 
     /** sends a command; false if nothing needed sending */
     boolean send(ClimateMap.Command c) throws Exception {
+        if (c.kind == ClimateMap.INTAKE) {
+            if (!climateFlagsOk) throw new IllegalStateException("intake flags not verified");
+            if (c.a == 1) return send(new ClimateMap.Command(ClimateMap.VR, F_INTAKE, 1, 0));
+            int current = IntakeLearning.read();
+            if (current == 2) return false;
+            if (current != 1) throw new IllegalStateException("fresh-air control needs live intake feedback");
+            FreshAirProfile profile = FreshAirProfile.read(dir, product, frontIntake);
+            if (profile == null) {
+                announce("Fresh-air setup", "In Kia's climate screen, turn recirculation ON then OFF once. CarPlay will learn the confirmed fresh-air command.");
+                throw new IllegalStateException("fresh-air command not learned from Kia's screen yet");
+            }
+            out.log("CAR fresh-air replay " + profile.command);
+            boolean sent = send(profile.command);
+            int consecutive = 0;
+            for (int n = 0; sent && n < 4; n++) {
+                Thread.sleep(400);
+                consecutive = IntakeLearning.read() == 2 ? consecutive + 1 : 0;
+                if (consecutive == 2) { out.log("CAR fresh-air feedback confirmed"); return true; }
+            }
+            // No repeated attempts or alternate enums: invalidate a command which did not reproduce the result.
+            new File(dir, FreshAirProfile.FILE).delete();
+            announce("Fresh air not confirmed", "Use Kia's climate screen to turn recirculation off. Repeat the ON then OFF learning cycle before retrying CarPlay.");
+            out.log("CAR fresh-air profile invalidated: requested result was not confirmed");
+            return sent;
+        }
         if (c.kind == ClimateMap.REAR) return pressRear(c.a);
         if (c.kind == ClimateMap.WHEEL) return pressWheel(c.a);
         if (c.kind == ClimateMap.SEAT && (!seatFeedbackFresh()
@@ -274,6 +312,16 @@ final class CarClimate extends Thread implements VehicleState.Car {
             reply.recycle();
         }
         return true;
+    }
+
+    private long lastIntakeNotice;
+    void announce(String label, String description) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (!VehicleEvents.enabled || now - lastIntakeNotice < 30000 && lastIntakeNotice != 0) return;
+        lastIntakeNotice = now;
+        VehicleState.post(label, description, "fan", 0);
+        VehicleState vs = state[0];
+        if (vs != null) lanes[1].deliver(vs.posted());
     }
 
     boolean pressWheel(int on) throws Exception {
@@ -401,6 +449,7 @@ final class CarClimate extends Thread implements VehicleState.Car {
         r.ac = status(F_AC);
         r.defrost = status(F_DEFROST);
         r.intake = status(F_INTAKE);
+        intakeState = r.intake == 1 ? 1 : r.intake == 2 ? 2 : -1;
         r.fan = status(F_FAN);
         r.mode = status(F_MODE);
         r.driverF = status(F_DRIVER_F);

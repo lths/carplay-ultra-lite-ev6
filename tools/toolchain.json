@@ -1,8 +1,10 @@
 {
   "hmgapi_sdk": {
-    "version": "1.1.0-rc.1",
-    "url": "https://github.com/Open-HMG/HMG-API/releases/download/v1.1.0-rc.1/hmgapi-mod-sdk-1.1.0-rc.1.zip",
-    "sha256": "a256b1a13b75637a7b4eec149b2dd3aa40c3743944ea63cc1b1998b9a5daf643"
+    "version": "1.1.0-rc.7",
+    "url": "https://github.com/Open-HMG/HMG-API/releases/download/v1.1.0-rc.7/hmgapi-mod-sdk-1.1.0-rc.7.zip",
+    "sha256": "ea5a9b2b84a48ebf25fe09b2a34bf22162b8b06f8b0f9bd6b43ff4aae234070a",
+    "runtime_floor": "1.1.0-rc.1",
+    "floor_sdk_sha256": "a256b1a13b75637a7b4eec149b2dd3aa40c3743944ea63cc1b1998b9a5daf643"
   },
   "d8": {
     "version": "8.3.37",
@@ -39,5 +41,13 @@
     "compile_api": 19,
     "dex_version": "035",
     "min_api": 19
+  },
+  "staged_hmg_upgrade": {
+    "core": "1.1.0-rc.7",
+    "wireless": "2.2.0-rc.8",
+    "wireless_core_floor": "1.1.0-rc.6",
+    "adb": "1.0.1-rc.1",
+    "asset_hashes": "tools/build_hmg_upgrade.py",
+    "legacy_wireless_shared_identity": false
   }
 }

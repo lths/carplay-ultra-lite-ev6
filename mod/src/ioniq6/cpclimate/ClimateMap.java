@@ -81,7 +81,7 @@ final class ClimateMap {
             v.put(FRONT_WINDOW_HEATING, r.defrost == 1 ? 1L : 0L);
         }
         if (r.rearDefog >= 0) v.put(REAR_WINDOW_HEATING, r.rearDefog == 1 ? 1L : 0L);
-        if (known(r.intake)) v.put(RECIRCULATION, r.intake == 1);
+        if (r.intake == 1 || r.intake == 2) v.put(RECIRCULATION, r.intake == 1);
         if (known(r.mode)) vents(v, (int) r.mode);
         boolean celsius = r.unit == CELSIUS;
         boolean off = known(r.on) && r.on != 1;
@@ -177,7 +177,7 @@ final class ClimateMap {
      * a command: DATCService setVRClimateStatus(a, b, c), setFrontClimateControl(a, b), USMService a(b), or
      * the rear defroster on (a 1) or off (a 0), which CarClimate sends through VRService
      */
-    static final int VR = 0, FRONT = 1, SEAT = 2, REAR = 3, WHEEL = 4;
+    static final int VR = 0, FRONT = 1, SEAT = 2, REAR = 3, WHEEL = 4, INTAKE = 5;
     static final int SET_DRIVER_SEAT = 0xd5, SET_PASSENGER_SEAT = 0xd6;
     static final int FRONT_DRIVER_ONLY = 24;
     static final int FAHRENHEIT = 2, FRONT_DRIVER_C = 28, FRONT_PASSENGER_C = 29, FRONT_PASSENGER_F = 31;
@@ -197,6 +197,7 @@ final class ClimateMap {
         public String toString() {
             if (kind == REAR) return "rear(" + a + ")";
             if (kind == WHEEL) return "wheel(" + a + ")";
+            if (kind == INTAKE) return "intake(" + (a == 1 ? "recirculate" : "fresh") + ")";
             return (kind == VR ? "vr" : kind == FRONT ? "front" : "seat") + "(" + a + ", " + b + (kind == VR ? ", " + c : "") + ")";
         }
     }
@@ -232,7 +233,7 @@ final class ClimateMap {
             } else if (iid == REAR_WINDOW_HEATING && v instanceof Long) {
                 out.add(new Command(REAR, (Long) v > 0 ? 1 : 0, 0, 0));
             } else if (iid == RECIRCULATION && v instanceof Boolean) {
-                out.add(new Command(VR, 11, (Boolean) v ? 1 : 2, 0));
+                out.add(new Command(INTAKE, (Boolean) v ? 1 : 0, 0, 0));
             } else if (VehicleDescription.wheelHeat && iid == VehicleDescription.WHEEL_LEVEL && v instanceof Long
                     && ((Long) v == 0 || (Long) v == 1)) {
                 out.add(new Command(WHEEL, ((Long) v).intValue(), 0, 0));

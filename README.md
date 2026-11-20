@@ -1,7 +1,7 @@
 # CarPlay Ultra-Lite for EV6
 
 Private development copy for a **2024 Kia EV6, Gen5W USA firmware 260507**. Current test version:
-**1.3.3-ev6.6**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
+**1.3.3-ev6.7**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
 Requires working wireless CarPlay, **HMG-API 1.1.0-rc.1 or later**, and the existing theme-enabled routing dependency.
 The owner uses iOS 27.2 and confirms **ventilation, wheel heat, range, odometer and battery percentage work**
 on ev6.2. The November 17 control trace also confirms passenger seat-heat OFF, wheel on/off, and low ventilation
@@ -10,6 +10,29 @@ see the [diagnostic finding and USB installation path](docs/PRECONDITIONING-DIAG
 
 GitHub's public-repository forks remain public, so this is an independent private repository retaining
 upstream history and an `upstream` remote. [UPSTREAM.md](UPSTREAM.md) preserves the original documentation.
+
+## Changes in ev6.7
+
+- Add a learned stock-command path for recirculation OFF. From Kia's touchscreen, turn recirculation ON then OFF
+  once while CarPlay remains connected. A command is saved only after ON→fresh feedback is confirmed twice,
+  and is bound to the exact EV6 firmware. Unlearned or unknown-state requests are withheld. Native and Comfort
+  fresh-air controls use the same path; the previous ineffective OFF value is no longer sent.
+- Add **Vehicle → Charging**: SOC, range, decoded charging state/connection, power/time with explicit units,
+  conditioning indication and data availability. Untyped status codes and raw numbers with unverified scales
+  are not displayed as measurements. See the power/time unit settings and test steps.
+- Replace the startup notification with real low-battery, charging-state and conditioning events. Two-sample
+  debounce, SOC hysteresis and stale-session handling prevent repeated alerts and false completion messages.
+- Add Park-gated charge-port open/close requests, with a five-second rate limit and explicit unconfirmed status.
+- Inventory every visible control in the supplied [Live Car Controls screenshot](docs/EV6-CONTROLS-CHECKLIST.md).
+  Existing climate/seat/audio functions are covered; unsupported body/roof/rear-HVAC actions remain documented work.
+
+These functions need owner validation. The Charging page's unmapped state/units remain unavailable until its
+OEM enums or measured scales are confirmed. Automatic audio resume remains removed; parked video remains optional.
+
+Built/tested with the verified HMG-API **rc.7 SDK**, with hook compatibility retained at rc.1. A separate
+[staged upgrade bundle](docs/HMG-RC7-UPGRADE.md) carries official HMG-API **1.1.0-rc.7**, Wireless **2.2.0-rc.8**
+and optional ADB **1.0.1-rc.1**. **Shared CarPlay identity must be OFF** with the existing themed-routing build;
+its native serializer overlaps Wireless's new optional serializer. Official packages are preserved unmodified.
 
 ## Changes in ev6.6
 
@@ -94,9 +117,9 @@ No manufacturer binary is included; no other firmware recipe is imported.
 
 ## Install and test
 
-For the existing installation, use **`cp-climate-1.3.3-ev6.6-usb.zip`** from the private release.
+For the existing installation, use **`cp-climate-1.3.3-ev6.7-usb.zip`** from the private release.
 Keep the existing wireless and theme-enabled routing mods. See [installation and test steps](docs/INSTALL-EV6.md).
-The complete `carplay-ultra-lite-ev6-1.3.3-ev6.6-install-usb.zip` also carries the unchanged signed routing dependency
+The complete `carplay-ultra-lite-ev6-1.3.3-ev6.7-install-usb.zip` also carries the unchanged signed routing dependency
 and its source for an installation that needs it. The checker USB ZIP is optional for this car.
 
 The owner's evidence and unresolved issues are recorded in [EV6-VALIDATION.md](docs/EV6-VALIDATION.md).
@@ -105,8 +128,9 @@ The old checker also accepted invalid seat-state values, which is corrected here
 
 ## Current limits
 
-- Recirculation OFF is still unresolved: the phone correctly sends false, and the mod sends `vr(11, 2, 0)`,
-  but the observed intake state stays on. Capture Kia touchscreen ON/OFF commands before changing that mapping.
+- The old recirculation OFF command `vr(11, 2, 0)` left the observed intake state on.
+  ev6.7 replaces that path with passive stock-command learning;
+  the learned command and subsequent fresh-air operation still need an on-car check.
 - CarPlay's integrated Radio backend is unimplemented; the DAB message does not establish a tuner fault.
   Use Kia's own menu for its FM radio. The old Radio/resume shortcut is removed.
 - Visual freezing needs on-car diagnosis. A running discarded cluster stream does not prove the center video is healthy.
@@ -114,6 +138,7 @@ The old checker also accepted invalid seat-state values, which is corrected here
 - Charging-method names do not establish units or callbacks. HMG-API's EV6 map identifies `getBatSoc()` as **12 V SOC**;
   retain the working `remainBatteryPercentage()` traction-battery reading. Charging/energy calibration in Apple Maps
   remains the separate routing mod's responsibility.
+  The new Charging page uses the existing traction SOC and verified typed states/units; unknown values stay unavailable.
 - Audio streams 14/13/11/12, maximum volume 45, and Launchpad preconditioning retain upstream assumptions.
   Volume-key interception, ADB keepalive and drive logging remain off by default.
 - Missing optional apps keep their rows to preserve the schema; their shortcuts have no action.
@@ -141,7 +166,8 @@ python3 tools/rebuild_segment.py --zig /path/to/zig
 python3 tools/test.py --android-jar /path/to/android.jar --sdk /path/to/hmgapi-sdk
 python3 tools/package.py mod --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
 python3 tools/package.py check --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
-python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.6.zip --sdk /path/to/hmgapi-sdk
+python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.7.zip --sdk /path/to/hmgapi-sdk
+python3 tools/build_hmg_upgrade.py --assets /path/to/verified-rc7-assets --mod-package out/mod/cp-climate-1.3.3-ev6.7.zip --sdk /path/to/rc7-sdk
 ```
 
 `test.py` also uses Python `cryptography` for the independent encrypted transport test.

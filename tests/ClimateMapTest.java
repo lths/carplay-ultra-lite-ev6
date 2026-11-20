@@ -127,8 +127,9 @@ public class ClimateMapTest {
         check("driver LO and HI clamp to 62 and 90", cmds(one(ClimateMap.DRIVER_TARGET, 16.0), now).equals("[vr(2, 62, 2)]")
                 && cmds(one(ClimateMap.DRIVER_TARGET, 32.5), now).equals("[vr(2, 90, 2)]"));
         check("passenger 73 °F by the stock screen's call (raw 17)", cmds(one(ClimateMap.PASSENGER_TARGET, 23.0), now).equals("[front(31, 17)]"));
-        check("recirculation 1, fresh 2", cmds(one(ClimateMap.RECIRCULATION, true), now).equals("[vr(11, 1, 0)]")
-                && cmds(one(ClimateMap.RECIRCULATION, false), now).equals("[vr(11, 2, 0)]"));
+        check("intake requests distinguish recirculate from learned fresh-air command", cmds(one(ClimateMap.RECIRCULATION, true), now).equals("[intake(recirculate)]")
+                && cmds(one(ClimateMap.RECIRCULATION, false), now).equals("[intake(fresh)]"));
+        check("unknown intake feedback does not falsely show fresh air", !ClimateMap.toCarPlay(car(1, 0, 0, 0, 0, 4, 2, 77, 0)).containsKey(ClimateMap.RECIRCULATION));
         check("SYNC on 2, off 1", cmds(one(ClimateMap.ZONES_SYNCED, true), now).equals("[vr(22, 2, 0)]")
                 && cmds(one(ClimateMap.ZONES_SYNCED, false), now).equals("[vr(22, 1, 0)]"));
         check("AUTO and defrost", cmds(one(ClimateMap.AUTO_CLIMATE, true), now).equals("[vr(8, 1, 0)]")

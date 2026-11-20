@@ -91,6 +91,8 @@ def main():
         shutil.copy2(ROOT / "docs/INSTALL-EV6.md", contents / "README.md")
         shutil.copy2(ROOT / "docs/EV6-VALIDATION.md", contents / "EV6-VALIDATION.md")
         shutil.copy2(ROOT / "docs/JOSHUA-1.1.15-PORT.md", contents / "JOSHUA-1.1.15-PORT.md")
+        for name in ("EV6-CONTROLS-CHECKLIST.md", "HMG-RC7-UPGRADE.md"):
+            shutil.copy2(ROOT / "docs" / name, contents / name)
         shutil.copy2(ROOT / "LICENSE", contents / "LICENSE")
         shutil.copy2(ROOT / "NOTICE", contents / "NOTICE")
         shutil.copy2(work / "routing/NOTICE.md", contents / "ROUTING-NOTICE.md")

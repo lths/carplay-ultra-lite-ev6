@@ -1,13 +1,13 @@
 {
   "id": "cp-climate",
   "name": "CarPlay Ultra-Lite",
-  "version": "1.3.3-ev6.6",
+  "version": "1.3.3-ev6.7",
   "hmgapi": ">=1.1.0-rc.1",
   "authors": [
     "cp-climate contributors"
   ],
   "license": "GPL-3.0-or-later",
-  "description": "EV6 USA 260507 build with automatic audio resume and its shortcut removed: connection no longer requests Now Playing or Play. Retains native Climate ventilation/wheel controls, compact OPACK -1, matching cached vehicle descriptions, EV6 BCM feedback and filtered diagnostics. Optional AirPlay video remains off by default and requires fresh Park feedback. New widgets and video require on-car validation. Based on CarPlay Ultra-Lite and LIVI (GPL-3.0).",
+  "description": "EV6 USA 260507: learns Kia's confirmed fresh-air command for recirculation OFF, adds unit-aware Charging information and real vehicle notifications. Unknown states and unverified units remain unavailable. Retains native Climate controls, EV6 feedback guards and optional parked AirPlay video. Audio resume remains removed. New functions require on-car validation. Based on CarPlay Ultra-Lite and LIVI (GPL-3.0).",
   "requires": [
     "wireless-carplay-aa"
   ],

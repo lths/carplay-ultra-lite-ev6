@@ -108,6 +108,8 @@ def main():
             (export / "README.txt").write_text("Keep this folder at the USB stick root for the mod's diagnostic exports.\n")
         if args.kind == "mod":
             shutil.copy2(ROOT / "docs/INSTALL-EV6.md", usb / "README.md")
+            for document_name in ("EV6-CONTROLS-CHECKLIST.md", "HMG-RC7-UPGRADE.md"):
+                shutil.copy2(ROOT / "docs" / document_name, usb / document_name)
         usb_zip = output / (name + "-usb.zip")
         archive(usb, usb_zip)
         shutil.copy2(public, output / "author.pub")

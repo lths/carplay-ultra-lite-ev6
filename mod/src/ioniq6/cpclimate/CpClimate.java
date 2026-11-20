@@ -33,7 +33,7 @@ public final class CpClimate extends ModEntry {
     /** left in DiPO's files folder at each CarPlay session when adb_keepalive is on; svc/helper.sh acts on it */
     static final String ADB_REQUEST = "cpc-adb-req";
     /** shown on the Vehicle page; keep in step with mod.json */
-    static final String VERSION = "1.3.3-ev6.6";
+    static final String VERSION = "1.3.3-ev6.7";
     static final String GUARD_FILE = "cp-climate-guard";
     static final int GUARD_STARTS = 2;
     static final long GUARD_MS = 10 * 60 * 1000L;
@@ -126,6 +126,9 @@ public final class CpClimate extends ModEntry {
                 }
             }, log);
             VehicleState.mediaControls = media;
+            ChargingReader.configuredPowerUnit = m.settingString("charging_power_unit", "unverified");
+            ChargingReader.configuredTimeUnit = m.settingString("charging_time_unit", "unverified");
+            VehicleEvents.enabled = m.settingBoolean("vehicle_notifications", true);
             VehicleState[] state = new VehicleState[1];
             VsChannel[] lanes = new VsChannel[2];
             for (int lane = 0; lane < 2; lane++) lanes[lane] = new VsChannel(lane, dir, log, state, lanes);
@@ -150,7 +153,7 @@ public final class CpClimate extends ModEntry {
             for (VsChannel ch : lanes) ch.start();
             // M4: the car's climate on CarPlay both ways (CarClimate reads it and sends the phone's changes)
             CarClimate.rearDefrost = m.settingBoolean("rear_defrost", true);
-            CarClimate car = new CarClimate(state, lanes, log);
+            CarClimate car = new CarClimate(state, lanes, log, dir);
             VsChannel.car = car;
             car.start();
             if (m.settingBoolean("volume_link", true)) {
@@ -159,8 +162,6 @@ public final class CpClimate extends ModEntry {
                 audio.listen(app.context);
                 audio.start();
             }
-            // the Vehicle app's notification history: one entry per start, so the list is seen to work
-            VehicleState.post("CarPlay Ultra-Lite " + VERSION, "The car's page, volume and notifications are on.", "car", 0);
             // the Ultra experiment: the virtual cluster's video goes here and is thrown away
             if (ultra) new ClusterSink(log).start();
             VideoUi.out = log;

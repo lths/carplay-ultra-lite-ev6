@@ -58,6 +58,41 @@
    "apply": "restart"
   },
   {
+   "key": "vehicle_notifications",
+   "type": "toggle",
+   "default": true,
+   "title": "Vehicle notifications",
+   "description": "Show real low-battery, decoded charging-state and battery-conditioning events in Vehicle notification history. Repeated unchanged readings and reconnects do not repeat alerts. Restart afterwards.",
+   "apply": "restart"
+  },
+  {
+   "key": "charging_power_unit",
+   "type": "choice",
+   "default": "unverified",
+   "title": "Charging power display units",
+   "description": "For the OEM EVSE display getter, select a scale only after comparing the logged value with Kia's charging screen. An explicitly kW/W-named OEM getter needs no override. Until verified, power stays unavailable. Restart after changing.",
+   "options": [
+    {"value": "unverified", "title": "Automatic / unverified raw getter stays hidden"},
+    {"value": "kw", "title": "Raw value is kW"},
+    {"value": "tenths_kw", "title": "Raw value is tenths of a kW (divide by 10)"},
+    {"value": "watts", "title": "Raw value is watts (divide by 1000)"}
+   ],
+   "apply": "restart"
+  },
+  {
+   "key": "charging_time_unit",
+   "type": "choice",
+   "default": "unverified",
+   "title": "Charging time display units",
+   "description": "Confirm the OEM time-remaining value against Kia's charging screen before selecting minutes or seconds. Explicitly unit-named getters are automatic. Missing, stale or unverified values stay hidden. Restart after changing.",
+   "options": [
+    {"value": "unverified", "title": "Automatic / unverified raw getter stays hidden"},
+    {"value": "minutes", "title": "Raw value is minutes"},
+    {"value": "seconds", "title": "Raw value is seconds"}
+   ],
+   "apply": "restart"
+  },
+  {
    "key": "volume_link",
    "type": "toggle",
    "default": true,

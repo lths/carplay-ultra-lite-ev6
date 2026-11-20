@@ -284,6 +284,34 @@ Regression checks cover idle startup/reconnect and duplicate callbacks, zero sch
 Radio commands with no navigation or playback, explicit paired media keys, pending-action disconnect behavior,
 stable later page IDs and rejected cached resume writes. Confirm the correction on the car after updating.
 
+## Fresh air, charging, notifications and HMG update, 2026-11-20 (ev6.7)
+
+The requested features are implemented with conservative unknown-data handling:
+
+- Recirculation OFF no longer sends the known ineffective `vr(11, 2, 0)` guess. A passive stock-touchscreen
+  observer records the exact named intake command only after 1→2→2 feedback. Profiles are firmware/selector-bound;
+  the known ON command cannot be learned as OFF. Replay requires known recirculating state, confirms two fresh
+  readings, and invalidates an unconfirmed profile without retrying other enums. An owner learning cycle is required.
+- Charging uses allowlisted, signature-checked getters and OEM typed objects/enums. It never uses enum ordinals,
+  guesses a numeric status, substitutes 12 V SOC, or treats available mains power as actual charging power.
+  Explicitly named units are automatic; other power/time scales require comparison with Kia's screen before enabling.
+  Unknown states and invalid values remain unavailable; idle/unplugged states hide leftover power/time.
+- Real event history replaces the startup example: low SOC with hysteresis, decoded charging transitions/faults,
+  and actual conditioning indication. Two samples debounce transitions; unknown data, long gaps and reconnects
+  cannot imply completion. Initial known state establishes a baseline. The original notification protocol is retained.
+- The photo's charge-port controls are added using the documented EV6 named boolean call, fresh Park feedback and
+  a five-second gate. Status explicitly reports an unconfirmed request. All other photo features are inventoried
+  in EV6-CONTROLS-CHECKLIST.md; unsupported body/roof/rear-HVAC commands are not exposed.
+
+The build is checked with the verified HMG rc.7 SDK while retaining the rc.1 hook floor. A staged upgrade carries
+official core rc.7, Wireless rc.8 and optional ADB rc.1 unchanged. The Wireless shared-identity recipe and existing
+themed-routing recipe have identical branch/patch addresses (0x1aa04/0x129c6); Shared CarPlay identity must be OFF
+for the legacy routing configuration. No private consumer is registered with that API in this build.
+
+No ADB device is connected to this computer. Fresh-air learning/replay, live charging decoding/scales, charge-port
+movement, event delivery on the iPhone and the core/wireless upgrade still need the owner's parked test.
+No automatic audio resume, guessed CAN command, new raw listener ABI or instrument-cluster rendering is introduced.
+
 ## Host validation of ev6.2
 
 - Native hook behavior, climate mapping, session pairing, firmware mismatch guards, Vehicle-page updates/actions,

@@ -44,13 +44,14 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     static final long PERIOD_MS = 5000;
     static final String LIGHTS_REQUEST = "cpc-lights-req", LIGHTS_STATE = "cpc-lights-state";
     static final String S_CAR = "Vehicle", S_LIGHTS = "Ambient light", S_OPEN = "Head unit";
-    static final String S_COMFORT = "Comfort";
+    static final String S_COMFORT = "Comfort", S_CHARGING = "Charging";
     // Reserve the removed Radio/resume slot so subsequent readings and shortcuts keep their IIDs.
     static final String[] LEGACY_ROWS = { "open_home", "battery", "precondition", "range", "odometer", "lights",
             "open_lights", "open_hmgapi", "open_nemesis", null, "open_ev", "open_vehicle_settings", "version" };
     static final String[] COMFORT_ROWS = { "wheel_heat", "wheel_heat_status", "driver_seat_status", "driver_vent_low", "driver_vent_medium",
             "driver_vent_high", "driver_seat_off", "passenger_seat_status", "passenger_vent_low", "passenger_vent_medium",
-            "passenger_vent_high", "passenger_seat_off" };
+            "passenger_vent_high", "passenger_seat_off", "intake_status", "recirc_air", "fresh_air", "fresh_air_setup" };
+    static final String[] CHARGING_ROWS = { "charge_status", "charge_battery", "charge_range", "charge_connection", "charge_power", "charge_remaining", "charge_conditioning", "charge_data", "charge_port_open", "charge_port_close", "charge_port_request" };
     /** a screen a button opens: its id, label, symbol, then package[/class] candidates, first one installed wins */
     static final String[][] SCREENS = {
             { "open_hmgapi", "HMG-API", "puzzlepiece.extension", "hmgapi.app/.MainActivity" },
@@ -87,6 +88,8 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     private int txCondIndicator = -1, txHevStatus = -1;
     private int txOdometer = -1, txRange = -1, txSoc = -1, txChargeStatus = -1, txChargeFinish = -1, txChargeTime = -1, txUnit = -1;
     private final int[] txTyres = { -1, -1, -1, -1 };
+    private final VehicleEvents events = new VehicleEvents();
+    private final ChargePort chargePort = new ChargePort();
     private IBinder hscan;
     private int failures;
 
@@ -151,11 +154,25 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
                 page.button(S_COMFORT, seat + "_vent_" + level, title + " ventilation " + level, "fan");
             page.button(S_COMFORT, seat + "_seat_off", title + " seat heat / ventilation off", "power");
         }
+        page.line(S_COMFORT, "intake_status", "Air intake", "fan");
+        page.button(S_COMFORT, "recirc_air", "Recirculate cabin air", "arrow.triangle.2.circlepath");
+        page.button(S_COMFORT, "fresh_air", "Use fresh outside air", "wind");
+        page.line(S_COMFORT, "fresh_air_setup", "Fresh-air control", "info.circle");
+        String[][] charging = { { "charge_status", "Charging status", "bolt.car" }, { "charge_battery", "Battery charge", "battery.100" },
+                { "charge_range", "Range", "gauge" }, { "charge_connection", "Connection", "powerplug" },
+                { "charge_power", "Charging power", "bolt" }, { "charge_remaining", "Time remaining", "clock" },
+                { "charge_conditioning", "Battery conditioning", "thermometer.medium" }, { "charge_data", "Charging data", "info.circle" } };
+        for (String[] row : charging) page.line(S_CHARGING, row[0], row[1], row[2]);
+        page.button(S_CHARGING, "charge_port_open", "Open charge port", "powerplug");
+        page.button(S_CHARGING, "charge_port_close", "Close charge port", "powerplug");
+        page.line(S_CHARGING, "charge_port_request", "Charge-port request", "info.circle");
         page.pinSection(S_CAR, VehiclePage.BASE).pinSection(S_LIGHTS, VehiclePage.BASE + 16)
-                .pinSection(S_OPEN, VehiclePage.BASE + 32).pinSection(S_COMFORT, VehiclePage.BASE + 0x1000);
+                .pinSection(S_OPEN, VehiclePage.BASE + 32).pinSection(S_COMFORT, VehiclePage.BASE + 0x1000)
+                .pinSection(S_CHARGING, VehiclePage.BASE + 0x2000);
         for (int i = 0; i < LEGACY_ROWS.length; i++)
             if (LEGACY_ROWS[i] != null) page.pinItem(LEGACY_ROWS[i], 20576L + 16L * i);
         for (int i = 0; i < COMFORT_ROWS.length; i++) page.pinItem(COMFORT_ROWS[i], VehiclePage.BASE + 0x1100 + 16L * i);
+        for (int i = 0; i < CHARGING_ROWS.length; i++) page.pinItem(CHARGING_ROWS[i], VehiclePage.BASE + 0x2100 + 16L * i);
         return page;
     }
 
@@ -238,6 +255,11 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
         work.add(new Runnable() {
             @Override
             public void run() {
+                if ("charge_port_open".equals(id) || "charge_port_close".equals(id)) {
+                    String result = chargePort.request("charge_port_close".equals(id), lanes[0].isOpen() || lanes[1].isOpen());
+                    out.log("VEH charge-port " + result);
+                    return;
+                }
                 CarClimate climate = CarClimate.instance;
                 if (climate != null && climate.comfortPressed(id)) return;
                 Intent i = screens.get(id);
@@ -324,6 +346,7 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     @Override
     public void run() {
         lookUp();
+        ChargingReader charging = new ChargingReader(out, ChargingReader.configuredPowerUnit, ChargingReader.configuredTimeUnit);
         startWorker();
         String last = null;
         while (true) {
@@ -350,14 +373,25 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
                         fresh.put("lights", "1".equals(s));
                 } else fresh.put("lights", false);
                 String precond = "";
+                int indicator = intCall(BCM, CarApi.BCM, txCondIndicator, -1);
                 if (launchpad != null) {
-                    int indicator = intCall(BCM, CarApi.BCM, txCondIndicator, -1);
                     String owned = firstLine(new File(dir, PRECOND_STATE));
                     fresh.put("precondition", preconditionShown(indicator, "1".equals(owned),
                             System.currentTimeMillis() - precondAskedAt, precondAskedOn));
                     precond = " | conditioning indicator " + indicator + " launchpad " + owned + " enabled "
                             + intCall(HEV, HEV_IFACE, txHevStatus, -1, 94) + " ready " + intCall(HEV, HEV_IFACE, txHevStatus, -1, 44);
                 } else fresh.put("precondition", false);
+                ChargingData.Sample energy = charging.sample();
+                fresh.putAll(ChargingData.values(energy, soc, range, miles, indicator));
+                fresh.put("charge_port_request", chargePort.status);
+                List<VehicleEvents.Event> changes = events.update(android.os.SystemClock.elapsedRealtime(), soc, energy.state, indicator);
+                if (VehicleEvents.enabled && !changes.isEmpty()) {
+                    for (VehicleEvents.Event event : changes) {
+                        VehicleState.post(event.label, event.detail, event.symbol, event.severity);
+                        out.log("VEH notification " + event.label);
+                    }
+                    lanes[1].deliver(vs.posted());
+                }
                 String seen = "soc " + soc + " range " + range + " km odometer " + odometer + " km unit " + (miles ? "mi" : "km")
                         + " | charging status " + hscanInt(txChargeStatus, false) + " finish " + hscanInt(txChargeFinish, false)
                         + " time " + hscanInt(txChargeTime, false) + " | tyres " + hscanInt(txTyres[0], false) + " "
