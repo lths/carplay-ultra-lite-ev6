@@ -61,7 +61,7 @@ static const char *m_cstr(const void *s, unsigned enc) { if (enc != 0x08000100u)
 static const void *m_new_str(const void *al, const char *s, unsigned enc) { (void)al; if (enc != 0x08000100u) abort(); return str(s); }
 static unsigned char vspi_file[256 * 1024];
 static unsigned long vspi_len;
-static int plist_fail;
+static int plist_fail, vspi_as_dict;
 #include "livi_hid.h"
 /* the mock decoder's answer for native/livi_hid.h (its encoding is checked by tools/mklivihid.py's plistlib) */
 static const void *mock_livi_hid(void) {
@@ -82,6 +82,10 @@ static const void *m_plist(const void *p, unsigned long len, int *err) {
     if (len == 42 && !memcmp(p, "bplist00", 8) && (((const char *)p)[8] == 0x08 || ((const char *)p)[8] == 0x09)) { Blob *f = mk(T_BLOB, sizeof(Blob)); f->len = 42; *err = 0; return f; }   /* hooks.c's false */
     if (plist_fail) { *err = -6705; return 0; }
     if (len != vspi_len || memcmp(p, vspi_file, len) || memcmp(p, "bplist00", 8)) abort();
+    if (vspi_as_dict) {   /* the file case: the hook checks for a dictionary with pluginConfigs */
+        Dict *d = mk(T_DICT, sizeof(Dict)); Str *k = str("pluginConfigs"); Arr *a = mk(T_ARR, sizeof(Arr));
+        m_set(d, k, a); m_release(k); m_release(a); *err = 0; return d;
+    }
     Blob *b = mk(T_BLOB, sizeof(Blob)); b->len = len; *err = 0; return b;
 }
 static const void *m_plist(const void *p, unsigned long len, int *err);
@@ -111,8 +115,11 @@ static long long m_get_int(const void *d, const void *k, int *err) {
 }
 static int m_add_stream(const void *reply, const void *stream);
 static char lastlog[512];
+static int vspi_file_logs, vspi_fallback_logs;
 static void m_log(void *cat, const char *fn, int level, const char *fmt, ...) {
     va_list ap; va_start(ap, fmt); vsnprintf(lastlog, sizeof lastlog, fmt, ap); va_end(ap);
+    if (strstr(lastlog, "from files/cpc-vspi.bplist")) vspi_file_logs++;
+    if (strstr(lastlog, "cpc-vspi.bplist not used")) vspi_fallback_logs++;
     printf("    log [%s %d] %s", fn, level, lastlog); (void)cat;
 }
 static unsigned long m_typeid(const void *o) { return tid(o); }
@@ -127,6 +134,42 @@ unsigned long cpc_vspi_len;
 void cpc_info_hook(const void *info);
 void cpc_setup_hook(const void *request, const void *reply);
 int cpc_stream_hook(void *session, const void *stream, const void *reply, long type);
+int cpc_command_hook(const void *type, const void *plist, const unsigned char *req);
+int cpc_test_video_send(void *session, const unsigned char *d, long n);
+/* video stage 3 stand-ins: GCD and DiPO's HTTP client */
+static void *synced_on, *sent_client, *body_copy;
+static char req_line[128], field_line[128], body_type[64];
+static unsigned long body_len;
+static int sent_n, msg_released;
+static void *m_global_queue(long p, unsigned long f) { (void)p; (void)f; return (void *)1; }
+static void *async_ctx; static int async_n;
+static void m_async(void *q, void *ctx, void (*fn)(void *)) { (void)q; (void)fn; async_ctx = ctx; async_n++; }
+static void m_sync(void *q, void *ctx, void (*fn)(void *)) { synced_on = q; fn(ctx); }
+static void *msg_live;
+static int m_msg_create(void **out) { msg_live = mk(T_BLOB, 0x900); msg_released = 0; *out = msg_live; return 0; }
+static int m_init_request(void *h, const char *m, const char *u, const char *v) {
+    if (h != (char *)msg_live + 0x10) abort();
+    snprintf(req_line, sizeof req_line, "%s %s %s", m, u, v); return 0;
+}
+static int m_add_field(void *h, const char *name, const char *fmt, ...) {
+    if (h != (char *)msg_live + 0x10) abort();
+    char v[64]; va_list ap; va_start(ap, fmt); vsnprintf(v, sizeof v, fmt, ap); va_end(ap);
+    snprintf(field_line, sizeof field_line, "%s: %s", name, v); return 0;
+}
+static int m_set_body(void *msg, const char *type, const void *p, unsigned long n) {
+    if (msg != msg_live) abort();
+    snprintf(body_type, sizeof body_type, "%s", type); body_copy = (void *)p; body_len = n; return 0;
+}
+static int m_send(void *client, void *msg) { if (msg != msg_live) abort(); sent_client = client; sent_n++; return 0; }
+static void *m_retain(void *o) { retain(o); return o; }
+static void *m_malloc(unsigned long n) { return malloc(n); }
+static void *m_memcpy(void *d, const void *s, unsigned long n) { return memcpy(d, s, n); }
+static void m_release_counted(const void *o) { if (o == msg_live && msg_live) msg_released++; m_release(o); }
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 #define PUT(i, p) cpc_table[i] = (int)((const char *)(p) - (const char *)cpc_table)
 
@@ -152,7 +195,7 @@ int main(void) {
     cpc_vspi_len = vspi_len;
     PUT(T_LOGCAT, &logcat);
     PUT(T_GOT_DKEY, &got_dkey); PUT(T_GOT_DVAL, &got_dval); PUT(T_GOT_ARR, &got_arr);
-    PUT(T_CFDictionaryGetValue, m_get); PUT(T_CFDictionarySetValue, m_set); PUT(T_CFRelease, m_release);
+    PUT(T_CFDictionaryGetValue, m_get); PUT(T_CFDictionarySetValue, m_set); PUT(T_CFRelease, m_release_counted);
     PUT(T_CFBinaryPlistV0CreateWithData, m_plist); PUT(T_CFArrayGetCount, m_count); PUT(T_CFArrayGetValueAtIndex, m_at);
     PUT(T_CFEqual, m_equal); PUT(T_CFArrayCreateMutable, m_new_arr); PUT(T_CFArrayAppendValue, m_append);
     PUT(T_CFDictionaryCreateMutable, m_new_dict); PUT(T_CFDictionarySetInt64, m_set_int);
@@ -161,6 +204,10 @@ int main(void) {
     PUT(T_CFDictionaryGetTypeID, id_dict);
     PUT(T_CFBinaryPlistV0Create, m_encode); PUT(T_free, m_free); PUT(T_CFDictionaryApplyFunction, m_apply);
     PUT(T_DERIVE_STREAM_KEYS, m_derive); PUT(T_ADD_STREAM_REPLY, m_add_stream); PUT(T_CFDictionaryGetInt64, m_get_int);
+    PUT(T_dispatch_get_global_queue, m_global_queue); PUT(T_dispatch_async_f, m_async); PUT(T_dispatch_sync_f, m_sync);
+    PUT(T_HTTPMessageCreate, m_msg_create); PUT(T_HTTPHeader_InitRequest, m_init_request); PUT(T_HTTPHeader_AddFieldF, m_add_field);
+    PUT(T_HTTPMessageSetBodyPtr, m_set_body); PUT(T_HTTPClientSendMessage, m_send); PUT(T_CFRetain, m_retain);
+    PUT(T_malloc, m_malloc); PUT(T_memcpy, m_memcpy);
 #if CPC_DIAG
     printf("-- diagnostic variant: /info stays stock, three saves that decode back equal\n");
     Dict *dinfo = (Dict *)m_new_dict(0, 0, &cb_dkey, &cb_dval);
@@ -743,9 +790,169 @@ int main(void) {
         if (f) { fputs("1\n", f); fclose(f); }
         CHECK("videoPlayback data stream, experiment on: {type 130, streamID 140, dataPort 7134}", cpc_stream_hook(&session, st, reply, 130) == 1
               && streams->n == 5 && n_of(g(streams->v[4], "dataPort")) == 7134 && n_of(g(streams->v[4], "streamID")) == 140);
+        CHECK("videoPlayback data stream: the answer loop started for this session", async_n == 1 && async_ctx == (void *)&session);
+        Str *uvs = str("BB493F61-A6B8-4769-8D74-80C23A9F71C4"); m_set(st, kt, uvs); m_release(uvs);
+        remove(DIR "cpc-vs-4.key");
+        CHECK("videoPlayback settings stream: {type 130, streamID 141, dataPort 7138}", cpc_stream_hook(&session, st, reply, 130) == 1
+              && streams->n == 6 && n_of(g(streams->v[5], "dataPort")) == 7138 && n_of(g(streams->v[5], "streamID")) == 141);
+        f = fopen(DIR "cpc-vs-4.key", "rb"); kn = f ? fread(kf, 1, sizeof kf, f) : 0; if (f) fclose(f);
+        CHECK("settings stream keys in cpc-vs-4.key (72 bytes, read key = Output)", kn == 72 && kf[8] == (unsigned char)(0x80 + seed));
+        Str *uvo = str("E3DC3EA6-E6C3-4B30-847C-B7ACFEBEA654"); m_set(st, kt, uvo); m_release(uvo);
+        remove(DIR "cpc-vs-5.key");
+        CHECK("videoPlayback overlay stream: {type 130, streamID 142, dataPort 7139}", cpc_stream_hook(&session, st, reply, 130) == 1
+              && streams->n == 7 && n_of(g(streams->v[6], "dataPort")) == 7139 && n_of(g(streams->v[6], "streamID")) == 142);
+        f = fopen(DIR "cpc-vs-5.key", "rb"); kn = f ? fread(kf, 1, sizeof kf, f) : 0; if (f) fclose(f);
+        CHECK("overlay stream keys in cpc-vs-5.key (72 bytes)", kn == 72);
+        CHECK("overlay stream: logged with its port", strstr(lastlog, "videoPlayback overlay stream set up on port 7139") != 0);
+        derive_fail = 1;
+        remove(DIR "cpc-vs-5.key");
+        CHECK("overlay stream, keys not made: still set up, on the sink port 7134", cpc_stream_hook(&session, st, reply, 130) == 1
+              && streams->n == 8 && n_of(g(streams->v[7], "dataPort")) == 7134 && n_of(g(streams->v[7], "streamID")) == 142);
+        f = fopen(DIR "cpc-vs-5.key", "rb");
+        CHECK("overlay stream, keys not made: no key file", f == 0);
+        if (f) fclose(f);
+        derive_fail = 0;
         remove(DIR "cpc-xenable");
         m_release(st); m_release(reply); m_release(kt); m_release(ks);
         CHECK("no leaks after M2", live == 0);
+    }
+    {
+        printf("-- /info's vehicleStateProtocolInfo from files/cpc-vspi.bplist (the Java side's description)\n");
+        FILE *vf = fopen(DIR "cpc-vspi.bplist", "wb");
+        if (vf) { fwrite(vspi_file, 1, vspi_len, vf); fclose(vf); }
+        Dict *vi = (Dict *)m_new_dict(0, 0, &cb_dkey, &cb_dval);
+        Arr *vd = (Arr *)m_new_arr(0, 0, &cb_arr);
+        Dict *vm = display("0d15b1a4-0000-4000-8000-000000000001", 1920, 720, 292, 110);
+        m_append(vd, vm); m_release(vm);
+        Str *kvd = str("displays"); m_set(vi, kvd, vd); m_release(kvd); m_release(vd);
+        vspi_file_logs = 0; vspi_fallback_logs = 0; vspi_as_dict = 1;
+        cpc_info_hook(vi);
+        vspi_as_dict = 0;
+        CHECK("the file is read and used", vspi_file_logs == 1 && vspi_fallback_logs == 0);
+        m_release(vi);
+        remove(DIR "cpc-vspi.bplist");
+        vi = (Dict *)m_new_dict(0, 0, &cb_dkey, &cb_dval);
+        vd = (Arr *)m_new_arr(0, 0, &cb_arr);
+        vm = display("0d15b1a4-0000-4000-8000-000000000001", 1920, 720, 292, 110);
+        m_append(vd, vm); m_release(vm);
+        kvd = str("displays"); m_set(vi, kvd, vd); m_release(kvd); m_release(vd);
+        vspi_file_logs = 0;
+        cpc_info_hook(vi);
+        CHECK("no file: LIVI's built-in description, quietly", vspi_file_logs == 0 && vspi_fallback_logs == 0);
+        m_release(vi);
+        vf = fopen(DIR "cpc-vspi.bplist", "wb");
+        if (vf) { fwrite(vspi_file, 1, vspi_len, vf); fclose(vf); }
+        vi = (Dict *)m_new_dict(0, 0, &cb_dkey, &cb_dval);
+        vd = (Arr *)m_new_arr(0, 0, &cb_arr);
+        vm = display("0d15b1a4-0000-4000-8000-000000000001", 1920, 720, 292, 110);
+        m_append(vd, vm); m_release(vm);
+        kvd = str("displays"); m_set(vi, kvd, vd); m_release(kvd); m_release(vd);
+        vspi_file_logs = 0; vspi_fallback_logs = 0;
+        cpc_info_hook(vi);
+        CHECK("a file that isn't a dictionary with pluginConfigs: LIVI's instead, logged", vspi_file_logs == 0 && vspi_fallback_logs == 1);
+        remove(DIR "cpc-vspi.bplist");
+        m_release(vi);
+        CHECK("no leaks after the vspi file cases", live == 0);
+    }
+    {
+        printf("-- video stage 2: POST /command without a type, and the two video setup commands\n");
+        static unsigned char req[0x500];
+        const char *head = "POST /command RTSP/1.0\r\nX-Apple-StreamID: 140\r\nContent-Type: application/x-apple-binary-plist\r\nCSeq: 7\r\n\r\n";
+        memcpy(req + 16, head, strlen(head));
+        unsigned char body[1363];
+        for (unsigned i = 0; i < sizeof body; i++) body[i] = (unsigned char)(i * 7);
+        memcpy(body, "bplist00", 8);
+        const unsigned char *bp = body;
+        unsigned long blen = sizeof body;
+        memcpy(req + 0x49c, &bp, sizeof bp);
+        memcpy(req + 0x4a8, &blen, sizeof blen);
+        int rx = socket(AF_INET, SOCK_DGRAM, 0);
+        struct sockaddr_in a; memset(&a, 0, sizeof a);
+        a.sin_family = AF_INET; a.sin_port = htons(7136); a.sin_addr.s_addr = htonl(0x7f000001);
+        CHECK("test receiver bound on 127.0.0.1:7136", bind(rx, (struct sockaddr *)&a, sizeof a) == 0);
+        struct timeval tv = { 1, 0 }; setsockopt(rx, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+        Dict *pl = (Dict *)m_new_dict(0, 0, &cb_dkey, &cb_dval);
+        remove(DIR "cpc-xenable");
+        CHECK("no type, experiment off: DiPO's 451", cpc_command_hook(0, pl, req) == 0);
+        FILE *f = fopen(DIR "cpc-xenable", "w");
+        if (f) { fputs("1\n", f); fclose(f); }
+        CHECK("no type, experiment on: answered", cpc_command_hook(0, pl, req) == 1);
+        unsigned char got[2000];
+        long n = recv(rx, got, sizeof got, 0);
+        CHECK("datagram: CPV1, stream 140, the body as sent",
+              n == 12 + (long)sizeof body && !memcmp(got, "CPV1", 4) && got[11] == 140 && got[4] == 0 && got[10] == 0
+              && !memcmp(got + 12, body, sizeof body));
+        CHECK("logged with its stream", strstr(lastlog, "message on stream 140 (1363 bytes)") != 0);
+        const char *head2 = "POST /command RTSP/1.0\r\nx-apple-streamid:9\r\n\r\n";
+        memset(req, 0, 0x49c); memcpy(req + 16, head2, strlen(head2));
+        CHECK("lower-case header, no space: answered", cpc_command_hook(0, pl, req) == 1);
+        n = recv(rx, got, sizeof got, 0);
+        CHECK("datagram: stream 9", n > 12 && got[11] == 9);
+        const char *head3 = "POST /command RTSP/1.0\r\nCSeq: 3\r\n\r\nX-Apple-StreamID: 5\r\n";
+        memset(req, 0, 0x49c); memcpy(req + 16, head3, strlen(head3));
+        CHECK("no X-Apple-StreamID (one after the header doesn't count): still answered", cpc_command_hook(0, pl, req) == 1);
+        n = recv(rx, got, sizeof got, 0);
+        CHECK("datagram: stream -1", n > 12 && got[4] == 0xff && got[11] == 0xff);
+        blen = 0; memcpy(req + 0x4a8, &blen, sizeof blen);
+        CHECK("no type and no body: DiPO's own path", cpc_command_hook(0, pl, req) == 0);
+        blen = sizeof body; memcpy(req + 0x4a8, &blen, sizeof blen);
+        Str *other = str("requestUI");
+        CHECK("another typed command: DiPO's own path", cpc_command_hook(other, pl, req) == 0);
+        m_release(other);
+        Str *proxy = str("setProxyParameters");
+        remove(DIR "cpc-video-proxy.bplist");
+        CHECK("setProxyParameters: answered", cpc_command_hook(proxy, pl, req) == 1);
+        f = fopen(DIR "cpc-video-proxy.bplist", "rb"); unsigned char sv[2000]; size_t sn = f ? fread(sv, 1, sizeof sv, f) : 0; if (f) fclose(f);
+        CHECK("setProxyParameters: body saved as is", sn == sizeof body && !memcmp(sv, body, sn));
+        m_release(proxy);
+        Str *vp = str("setVideoPlaybackParameters");
+        remove(DIR "cpc-video-params.bplist");
+        CHECK("setVideoPlaybackParameters: answered", cpc_command_hook(vp, pl, req) == 1);
+        f = fopen(DIR "cpc-video-params.bplist", "rb"); CHECK("setVideoPlaybackParameters: body saved", f != 0); if (f) fclose(f);
+        m_release(vp);
+        remove(DIR "cpc-xenable");
+        CHECK("setProxyParameters, experiment off: DiPO's own path", cpc_command_hook(proxy = str("setProxyParameters"), pl, req) == 0);
+        m_release(proxy);
+        remove(DIR "cpc-video-proxy.bplist"); remove(DIR "cpc-video-params.bplist");
+        Str *fw = str("forwardToVideoPlayback");
+        f = fopen(DIR "cpc-xenable", "w");
+        if (f) { fputs("1\n", f); fclose(f); }
+        CHECK("forwardToVideoPlayback: answered 200", cpc_command_hook(fw, pl, req) == 1);
+        remove(DIR "cpc-xenable");
+        CHECK("forwardToVideoPlayback, experiment off: DiPO's own path", cpc_command_hook(fw, pl, req) == 0);
+        m_release(fw);
+        close(rx);
+        m_release(pl);
+        CHECK("no leaks after video stage 2", live == 0);
+    }
+    {
+        printf("-- video stage 3: answers to the phone on the event channel\n");
+        static unsigned char session[0x400];
+        int queue_obj = 0, client_obj = 0;
+        void *qp = &queue_obj, *cp = &client_obj;
+        memcpy(session + 0x3c8, &qp, sizeof qp);
+        memcpy(session + 0x3cc, &cp, sizeof cp);
+        unsigned char d[12 + 300];
+        memcpy(d, "CPV2", 4); memset(d + 4, 0, 8); d[11] = 140;
+        for (int i = 0; i < 300; i++) d[12 + i] = (unsigned char)(i * 3);
+        sent_n = 0;
+        CHECK("an answer is sent", cpc_test_video_send(session, d, sizeof d) == 0 && sent_n == 1);
+        /* on the Mac pointers are 8 bytes and the two fields 4 apart, so only the client is checked whole */
+        CHECK("through a dispatch_sync on the session's queue, to its event client", synced_on != 0 && sent_client == cp);
+        CHECK("POST /command RTSP/1.0", !strcmp(req_line, "POST /command RTSP/1.0"));
+        CHECK("X-Apple-StreamID: 140", !strcmp(field_line, "X-Apple-StreamID: 140"));
+        CHECK("binary plist body, a copy of the datagram's", !strcmp(body_type, "application/x-apple-binary-plist")
+              && body_len == 300 && body_copy != d + 12 && !memcmp(body_copy, d + 12, 300));
+        CHECK("the message is released after sending", msg_released == 1);
+        free(body_copy); body_copy = 0;
+        d[3] = '1';
+        CHECK("not CPV2: not sent", cpc_test_video_send(session, d, sizeof d) != 0 && sent_n == 1);
+        d[3] = '2';
+        void *none = 0;
+        memcpy(session + 0x3cc, &none, sizeof none);
+        CHECK("no event client: not sent", cpc_test_video_send(session, d, sizeof d) != 0 && sent_n == 1);
+        memcpy(session + 0x3cc, &cp, sizeof cp);
+        CHECK("no leaks after video stage 3", live == 0);
     }
     printf(fails ? "%d FAILED\n" : "ALL OK\n", fails);
     return fails != 0;

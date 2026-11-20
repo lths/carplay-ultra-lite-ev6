@@ -33,7 +33,7 @@ public final class CpClimate extends ModEntry {
     /** left in DiPO's files folder at each CarPlay session when adb_keepalive is on; svc/helper.sh acts on it */
     static final String ADB_REQUEST = "cpc-adb-req";
     /** shown on the Vehicle page; keep in step with mod.json */
-    static final String VERSION = "1.3.3-ev6.4";
+    static final String VERSION = "1.3.3-ev6.5";
     static final String GUARD_FILE = "cp-climate-guard";
     static final int GUARD_STARTS = 2;
     static final long GUARD_MS = 10 * 60 * 1000L;
@@ -89,8 +89,7 @@ public final class CpClimate extends ModEntry {
         } else {
             starts.add(System.currentTimeMillis());
             save(starts);
-            // CarPlay Ultra-Lite 1.0: two settings. Everything the development builds made switchable is fixed
-            // at what was tested on the Ioniq 6 (CEEV USA 260507, 2026-11-08); the code for the other values stays.
+            // Preserve the existing theme profile and EV6-tested command paths.
             boolean ultra = m.settingBoolean("carplay_ultra", true);
             writeSize(dir, "100");
             writeDock(dir, "1");                                  // the bottom dock with the climate bar
@@ -106,10 +105,12 @@ public final class CpClimate extends ModEntry {
             writeFlag(dir, "cpc-uisync", uiSync, "uiSync (CarPlay theme layouts and palettes)");
             writeFeatures(dir, ultra ? "livi_all" : "off");
             writeFlag(dir, "cpc-xfeat", ultra, "/info enhancedRequestCarUI");
-            int extraBits = 0;                                    // videoPlayback/hevc experiments: off
-            writeNumber(dir, "cpc-xenable", 0, "SETUP extra features off");
+            int extraBits = m.settingBoolean("video_playback", false) ? 1 : 0;
+            VehicleDescription.seatCooling = m.settingBoolean("native_seat_cooling", true);
+            VehicleDescription.wheelHeat = m.settingBoolean("native_wheel_heat", true);
+            clearVideoParameters(dir);
+            writeNumber(dir, "cpc-xenable", extraBits, "optional parked video");
             writeNumber(dir, "cpc-hid", 0, "LIVI input devices in /info");   // on, iOS drew a knob-focus box
-            m.nativePatch(app, "libCarPlayCore.so");
             // M2: the vehicle state data streams the native SETUP handler sends the phone to;
             // M3: answered from one VehicleState the two lanes share
             VsChannel.Log log = new VsChannel.Log() {
@@ -141,6 +142,11 @@ public final class CpClimate extends ModEntry {
                     m.error("vehicle page left out", t);
                 }
             }
+            if (!writeVspi(dir, log)) {
+                m.error("matching CarPlay description could not be written; receiver patch withheld", null);
+                return;
+            }
+            m.nativePatch(app, "libCarPlayCore.so");
             for (VsChannel ch : lanes) ch.start();
             // M4: the car's climate on CarPlay both ways (CarClimate reads it and sends the phone's changes)
             CarClimate.rearDefrost = m.settingBoolean("rear_defrost", true);
@@ -157,7 +163,23 @@ public final class CpClimate extends ModEntry {
             VehicleState.post("CarPlay Ultra-Lite " + VERSION, "The car's page, volume and notifications are on.", "car", 0);
             // the Ultra experiment: the virtual cluster's video goes here and is thrown away
             if (ultra) new ClusterSink(log).start();
-            if ((extraBits & 1) != 0) new ClusterSink(log, 7134, "videoPlayback").start();
+            VideoUi.out = log;
+            VideoUi.enabled = (extraBits & 1) != 0;
+            if (VideoUi.enabled) {
+                writeNumber(dir, "cpc-video-nosound", 1, "video sound uses the phone's CarPlay audio");
+                writeNumber(dir, "cpc-video-nopicture", 0, "video picture");
+                writeNumber(dir, "cpc-video-nosync", m.settingBoolean("video_sync", true) ? 0 : 1, "video synchronization");
+                ParkedVideo park = new ParkedVideo(log);
+                park.start();
+                new ClusterSink(log, 7134, "videoPlayback").start();
+                new VideoStreamSink(dir, log, 4, 7138).start();
+                new VideoStreamSink(dir, log, 5, 7139).start();
+                new VideoMessages(log).start();
+                if (app.context == null || !VideoMessages.startEngine(app.context)) {
+                    VideoUi.enabled = false;
+                    writeNumber(dir, "cpc-xenable", 0, "video engine unavailable");
+                }
+            }
             // the iAPChannel experiment, stage A: the phone's iAP stream is decrypted and logged only
             if (iap) {
                 IapBridge.out = log;
@@ -173,6 +195,8 @@ public final class CpClimate extends ModEntry {
             protected void afterHookedMethod(Param p) {
                 IapBridge.carPlay = p.thisObject;
                 video.session(true);
+                if (ParkedVideo.instance != null) ParkedVideo.instance.session = true;
+                if (VideoUi.enabled) VideoUi.install(p.thisObject, p.thisObject.getClass().getClassLoader());
                 if (media != null) media.started(p.thisObject, mod.settingBoolean("resume_carplay_audio", true));
                 copyLater(COPY_DELAY_MS, false);
                 // test aid (setting adb_keepalive): CarPlay connecting takes the USB port from adb; the root
@@ -190,6 +214,9 @@ public final class CpClimate extends ModEntry {
             protected void afterHookedMethod(Param p) {
                 if (media != null) media.ended(p.thisObject);
                 video.session(false);
+                if (ParkedVideo.instance != null) ParkedVideo.instance.session = false;
+                VideoMessages.stopEngine("CarPlay session ended");
+                clearVideoParameters(filesDir);
                 copyLater(COPY_DELAY_MS, false);
             }
         });
@@ -237,6 +264,32 @@ public final class CpClimate extends ModEntry {
         }
         m.log("M4 in " + app.processName + " (guard " + guard + ", " + starts.size() + " recent start(s))");
     }
+
+    static boolean writeVspi(File dir, VsChannel.Log log) {
+        File target = new File(dir, "cpc-vspi.bplist"), temporary = new File(dir, "cpc-vspi.bplist.tmp");
+        try {
+            byte[] bytes = new VehicleState(new VsChannel.Log() { public void log(String text) { } }).vspi();
+            if (bytes.length <= 8 || bytes.length >= 512 * 1024) throw new java.io.IOException("invalid description length");
+            java.io.FileOutputStream output = new java.io.FileOutputStream(temporary);
+            try { output.write(bytes); output.getFD().sync(); } finally { output.close(); }
+            if (!temporary.renameTo(target)) throw new java.io.IOException("description rename failed");
+            log.log("VEH complete connection description written: " + bytes.length + " B");
+            return true;
+        } catch (Throwable t) {
+            temporary.delete(); target.delete();
+            log.log("VEH connection description unavailable: " + t.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    /** Session credentials must not survive a receiver restart or disconnect. */
+    static void clearVideoParameters(File dir) {
+        new File(dir, "cpc-video-proxy.bplist").delete();
+        new File(dir, "cpc-video-params.bplist").delete();
+    }
+
+    /** Called by the optional player through its narrow reflection bridge. */
+    public static boolean videoAllowed() { return VideoUi.enabled && ParkedVideo.allowed(); }
 
     /** the CarPlay size setting, for the native /info hook (files/cpc-size, 50-100 %) */
     static void writeSize(File dir, String size) {

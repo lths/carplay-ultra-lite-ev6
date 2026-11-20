@@ -73,6 +73,8 @@ def main():
             raise ValueError("EV engine identity must be retained")
         if any(cs[k] for k in ("carplay_volume_slider", "adb_keepalive", "drive_log")):
             raise ValueError("testing aids must be off by default")
+        if cs.get("video_playback", False):
+            raise ValueError("optional parked video must be off by default")
         if any(rs[k] for k in ("carplay_iap_bridge", "carplay_iap_ft_v2", "carplay_link_ft_v2")) or rs["carplay_theme_alt"] != "off":
             raise ValueError("routing transport experiments must be off")
         if set(cm["hooks"]["native"]) & set(rm["hooks"]["native"]):

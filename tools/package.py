@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Build and sign a checker or mod using D8 and the HMG-API mod SDK (no manufacturer binaries)."""
+"""Build and sign API 19 mod/checker packages with pinned D8/R8 and the HMG-API SDK."""
 import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -43,6 +44,10 @@ def main():
     src = ROOT / "mod/src/ioniq6/cpclimate"
     template = ROOT / ("check/mod" if args.kind == "check" else "mod")
     metadata = json.loads((template / "mod.json").read_text())
+    if args.kind == "mod":
+        version = re.search(r'\bVERSION\s*=\s*"([^"]+)"', (src / "CpClimate.java").read_text())
+        if version is None or version.group(1) != metadata["version"]:
+            raise ValueError("manifest and CpClimate versions differ; refusing to overwrite another release")
     output = ROOT / "out" / args.kind
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="ev6-package-") as temporary:
@@ -67,7 +72,12 @@ def main():
             sources = sorted(src.glob("*.java"))
             jar = package / "hooks.jar"
         run(*compile_args, *sources)
-        run(*dex_args, "--output", jar, *sorted(classes.rglob("*.class")))
+        if args.kind == "mod":
+            from build_video import build
+            build(classes, jar, args.android_jar.resolve(), args.sdk)
+            shutil.copytree(ROOT / "video/licenses", package / "video-licenses")
+        else:
+            run(*dex_args, "--output", jar, *sorted(classes.rglob("*.class")))
         with zipfile.ZipFile(jar) as dex:
             if not dex.read("classes.dex").startswith(b"dex\n035\0"):
                 raise SystemExit("expected Android 4.4 compatible dex version 035")

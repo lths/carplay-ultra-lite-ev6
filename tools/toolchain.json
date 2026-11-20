@@ -22,5 +22,22 @@
     "archive_sha256": "5efc3a3a682c1d49128daddb6716c433edf16e63349f32959b6207524ac04039",
     "jar_path": "android-4.4.2/android.jar",
     "jar_sha256": "4032a201eeb1d0430c7d9f1075151dd280427de5ca9e36f734f464ab605cb690"
+  },
+  "video": {
+    "source_tag": "joshuaauger/carplay-ultra-lite-gen5w v1.1.15",
+    "source_commit": "4f739c79c3d884f47f914468148213994d46ca46",
+    "r8_version": "8.5.35",
+    "r8_sha256": "4733945987ee0a840fafc34080b135259e01678412e07212b23f706334290294",
+    "dependencies": "video/fetch-libs.sh (URLs, versions and SHA-256)",
+    "r8_linking_stubs": {
+      "version": "Android API 34 ext7 revision 3",
+      "url": "https://dl.google.com/android/repository/platform-34-ext7_r03.zip",
+      "archive_sha256": "16fdb74c55e59ae3ef52def135aec713508467bd56d7dabcd8c9be31fa8b20f3",
+      "jar_path": "android-34/android.jar",
+      "jar_sha256": "6cea1df3efb77103ac3e2beb9bf4718964b0e0869ab16d39d29d5cbae1c147ad"
+    },
+    "compile_api": 19,
+    "dex_version": "035",
+    "min_api": 19
   }
 }

@@ -16,3 +16,8 @@ retain the following attribution:
 The attribution must appear in the work's Appropriate Legal Notices, such as an
 About screen, and in its documentation, for example its README. Where LIVI's own
 About screen is kept, its copyright notice satisfies this term.
+
+EV6 ev6.5 also adapts work from joshuaauger/carplay-ultra-lite-gen5w v1.1.15,
+commit 4f739c79c3d884f47f914468148213994d46ca46 (GPL-3.0-or-later).
+https://github.com/joshuaauger/carplay-ultra-lite-gen5w/tree/v1.1.15/source
+See mod/NOTICE.md and video/licenses/ for the port and bundled dependency notices.

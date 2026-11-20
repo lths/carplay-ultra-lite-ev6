@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the native Vehicle page from the same Java schema used at runtime."""
+"""Generate the complete native vehicle description from the schema used at runtime."""
 import argparse
 import os
 import subprocess
@@ -23,10 +23,12 @@ def main():
         str(ROOT / "tools/MkVspi.java")], cwd=ROOT, check=True)
     generated = subprocess.run(["java", "-cp", str(classes) + os.pathsep + cp, "ioniq6.cpclimate.MkVspi", "EV6"],
         cwd=ROOT, check=True, capture_output=True)
-    services = work / "services.json"
-    services.write_bytes(generated.stdout)
-    subprocess.run(["python3", str(ROOT / "tools/mkvspi.py"), str(ROOT / "data/vspi-livi.bplist"), str(services),
-        str(ROOT / "data/vspi.bplist")], cwd=ROOT, check=True)
+    import plistlib
+    description = plistlib.loads(generated.stdout)
+    assert description["pluginCount"] == 1 and description["pluginConfigs"][0]["name"] == "LIVI"
+    destination = ROOT / "data/vspi.bplist"
+    destination.write_bytes(generated.stdout)
+    print(f"{destination}: {len(generated.stdout)} bytes; complete runtime schema")
 
 
 if __name__ == "__main__":

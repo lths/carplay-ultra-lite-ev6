@@ -1,21 +1,27 @@
-# EV6 ev6.4 update and test
+# EV6 ev6.5 update and test
 
-For the owner's existing installation, use **cp-climate-1.3.3-ev6.4-usb.zip**.
-This updates CarPlay Ultra-Lite only. It adds route/OPACK/video diagnostics and quieter page-action logging.
-The working climate mappings and ev6.3 audio-resume path are retained; audio acceptance and freeze diagnosis still need on-car testing.
+For the owner's existing installation, use **cp-climate-1.3.3-ev6.5-usb.zip**.
+This updates CarPlay Ultra-Lite only. It adds native Climate cooling/wheel controls, matching complete vehicle
+descriptions, an OPACK fix and optional parked video from joshuaauger v1.1.15. It retains EV6 command safeguards,
+last-audio resume and filtered diagnostics. The new UI/video and audio acceptance still need on-car testing.
 
 ## Update
 
 1. Confirm HMG-API is **1.1.0-rc.1 or later**. The new video observer hooks require that version.
 2. Unzip the update USB ZIP. Copy **HMGAPI** and **CarPlayUltraLite-Logs** to the USB stick root.
-3. In HMG-API, select **Check USB updates**, install **CarPlay Ultra-Lite 1.3.3-ev6.4**, apply and restart the unit.
+3. In HMG-API, select **Check USB updates**, install **CarPlay Ultra-Lite 1.3.3-ev6.5**, apply and restart the unit.
    Keep the working official wireless mod and the existing theme-enabled routing mod enabled.
 4. Keep **CarPlay Ultra** on in this mod and the matching **CarPlay theme** on in the routing mod.
 5. Reconnect CarPlay. Remove the installation USB stick while establishing wireless CarPlay.
-   If the Vehicle page still labels the shortcut **Radio**, forget the car on both the head unit and the iPhone
+   If the Vehicle page still labels the shortcut **Radio**, or the new Climate controls remain absent, forget the car on both the head unit and the iPhone
    (**Settings → General → CarPlay**, plus Bluetooth), then pair again to refresh the cached page description.
    The old Radio action identifier is retained and also requests CarPlay audio after this update.
-6. Check the version under CarPlay's **Vehicle → Head unit** section: **1.3.3-ev6.4**.
+6. Check the version under CarPlay's **Vehicle → Head unit** section: **1.3.3-ev6.5**.
+
+**Seat ventilation in the Climate app** and **Steering wheel heat in the Climate app** default on in HMG-API → Mods → CarPlay Ultra-Lite → Settings.
+If the wheel widget obscures another button in your iOS Climate layout, switch **Steering wheel heat in the Climate app** off,
+apply and restart; **Vehicle → Comfort → Steering-wheel heat** still uses the working EV6 command.
+**AirPlay video while parked (experimental)** defaults off and has its own restart setting.
 
 The update uses the same private author key as ev6.1, UUID `51951394-274a-8d4b-8396-c831913a9a44`.
 Do not uninstall that existing private mod to update it. An upstream copy signed by another author cannot
@@ -28,6 +34,11 @@ then tap **Vehicle → Head unit → Resume CarPlay audio**. It should open Now 
 from the iPhone's current audio session, retaining its app and position. Confirm that Kia's FM screen stays closed.
 Then disconnect/reconnect CarPlay: it should request playback once after roughly three seconds.
 Repeat with audio already playing; an explicit Play request should not pause it.
+
+In CarPlay's Climate app, check both front seats' cooling steps and OFF, heat then OFF, and wheel heat ON/OFF.
+The four cooling dots map to the EV6's three physical levels: the middle two dots share medium ventilation.
+With HVAC on, choose distinct driver/passenger temperatures. Turn HVAC off: the displayed setpoints should stay
+at their last valid settings, without turning the system back on. Use Kia's screen to confirm actual states.
 
 **Resume last CarPlay audio on connect** is enabled by default in HMG-API's CarPlay Ultra-Lite settings.
 Turn it off for manual resume only; it is read at the next connection. The receiver cannot guarantee that
@@ -47,6 +58,24 @@ there is deliberately no automatic Play/Pause toggle fallback or repeated retry.
    Use Kia's own menu when you want its FM radio.
 6. Observe whether the center image still freezes. The lower virtual-cluster frame rate is a test mitigation,
    not a confirmed repair. Themes still do not replace the driver's instrument display.
+
+## Optional parked video
+
+Enable **AirPlay video while parked (experimental)** in the mod's HMG-API settings, apply and restart.
+Leave **Keep video picture with the phone audio** on initially. With the car in **P** and CarPlay connected, open a video app on the iPhone that
+offers AirPlay video and select the car as its output. Ordinary screen mirroring and FairPlay-protected services
+are not supported. Start with an unprotected H.264/AAC MP4 or HLS stream; there is no new video-app launcher on the car.
+
+The car shows video with a separate overlay containing close, pause/play, seek, fit/fill/stretch and captions when
+the stream supplies them. Audio stays on the phone's normal CarPlay path. Close or use the car's Home key to return
+to CarPlay. Confirm that normal CarPlay still works after closing video and after disconnect/reconnect.
+
+Video is withheld unless the named `getGearPStatus()` getter reports `1` and its latest sample is no more than
+1.5 seconds old. The getter is polled every 500 ms; a second watchdog checks freshness on the player loop.
+Non-Park, missing/failed/stale feedback, or session loss stops the player and hides its windows. There is no setting
+to bypass this gate. If no picture opens, capture **VIDEO Park feedback** and **VIDEO** messages while remaining parked.
+The EV6's Park getter, codec support, overlay layout and actual phone-to-car playback require this on-car validation.
+Disable the optional feature and restart to return to the default build behavior.
 
 ## Capture the remaining faults
 
@@ -79,7 +108,7 @@ to the 12 V battery and is not used for traction-battery percentage.
 ## Complete install bundle
 
 For an installation missing the theme dependency, the alternative
-**carplay-ultra-lite-ev6-1.3.3-ev6.4-install-usb.zip** contains the private mod and the original signed
+**carplay-ultra-lite-ev6-1.3.3-ev6.5-install-usb.zip** contains the private mod and the original signed
 **E-GMP CarPlay EV Routing 0.4.3-ioniq6.15**, plus that routing build's source and notices.
 Install routing first, then CarPlay Ultra-Lite. Its Ioniq 6 suffix also lists EV6 USA 260507 in its signed profiles.
 Routing author UUID: `4bec7579-9d68-8e3c-b667-2804d05a20b9`.

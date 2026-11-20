@@ -37,6 +37,21 @@
 #define T_DERIVE_STREAM_KEYS            30   /* 0xf014: DataStream-Salt<seed> keys (Thumb)         */
 #define T_ADD_STREAM_REPLY              31   /* 0xd59c: append to the reply's "streams" (Thumb)    */
 #define T_CFDictionaryGetInt64          32
-#define T_COUNT                         33
+#define T_CMD_TYPED                     33   /* 0xaf18: /command with a type, on to AirPlayReceiverSessionControl (Thumb) */
+#define T_CMD_451                       34   /* 0xb6d0: /command without a type, DiPO's 451 (Thumb)                  */
+#define T_CMD_DONE                      35   /* 0xaf6c: /command answered, status in r4, err at [sp, #0x7c] (Thumb)   */
+/* video stage 3: sending the phone video in car messages (POST /command with X-Apple-StreamID) */
+#define T_dispatch_get_global_queue     36
+#define T_dispatch_async_f              37
+#define T_dispatch_sync_f               38
+#define T_HTTPMessageCreate             39
+#define T_HTTPHeader_InitRequest        40
+#define T_HTTPHeader_AddFieldF          41
+#define T_HTTPMessageSetBodyPtr         42
+#define T_HTTPClientSendMessage         43
+#define T_CFRetain                      44
+#define T_malloc                        45
+#define T_memcpy                        46
+#define T_COUNT                         47
 
 #endif

@@ -1,7 +1,7 @@
 # CarPlay Ultra-Lite for EV6
 
 Private development copy for a **2024 Kia EV6, Gen5W USA firmware 260507**. Current test version:
-**1.3.3-ev6.4**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
+**1.3.3-ev6.5**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
 Requires working wireless CarPlay, **HMG-API 1.1.0-rc.1 or later**, and the existing theme-enabled routing dependency.
 The owner uses iOS 27.2 and confirms **ventilation, wheel heat, range, odometer and battery percentage work**
 on ev6.2. The November 17 control trace also confirms passenger seat-heat OFF, wheel on/off, and low ventilation
@@ -10,6 +10,27 @@ see the [diagnostic finding and USB installation path](docs/PRECONDITIONING-DIAG
 
 GitHub's public-repository forks remain public, so this is an independent private repository retaining
 upstream history and an `upstream` remote. [UPSTREAM.md](UPSTREAM.md) preserves the original documentation.
+
+## Changes in ev6.5
+
+Selected improvements from [joshuaauger v1.1.15](https://github.com/joshuaauger/carplay-ultra-lite-gen5w/releases/tag/v1.1.15):
+
+- Accept OPACK's compact `-1` value, used by native seat-cooling controls. Advertise front cooling and wheel heat
+  in CarPlay's Climate app, using this fork's existing EV6-tested seat/wheel commands and feedback guards.
+  **Seat ventilation in the Climate app** and **Steering wheel heat in the Climate app** default on; the existing Comfort controls remain available.
+- Declare the missing HVAC power characteristic and send the same complete vehicle description at connection and
+  over the live protocol. Schema versions change with control options; live battery/temperature values do not reset them.
+- Retain the last valid temperature setpoints while HVAC is off, for the life of the receiver process.
+- Clear the forced initial **DAB** media-source value. This does not implement CarPlay FM tuning or prove audio resume.
+- Add **AirPlay video while parked (experimental)**, **off by default**. Includes the fork's ExoPlayer player, separate
+  controls above the video surface, seek/fit/captions, network retries, VOD/live synchronization and screen handoff.
+  Playback requires an active CarPlay session and fresh Park feedback; loss of either releases the player and hides
+  its window. The phone supplies normal CarPlay audio. Protected FairPlay streams are unsupported.
+
+The new Climate widgets, phone audio acceptance and parked video still need on-car testing. The wheel widget may
+overlap another Climate control in some iOS layouts; disable its native toggle and use **Vehicle → Comfort** if needed.
+Unreleased home tiles and the physical instrument cluster are not implemented. The fork's rear-seat, ambient-light,
+other-firmware and raw-video-recording experiments are omitted. See the [port audit](docs/JOSHUA-1.1.15-PORT.md).
 
 ## Changes in ev6.4
 
@@ -57,14 +78,15 @@ The new audio behavior does not change the ev6.2 climate mappings.
   No new charging listener is registered and no unverified power/time reading is displayed.
 
 The target remains **CVEV / USA / 260507**. Climate flag, method-signature, stock-library and listener checks remain enabled.
-The rebuilt native segment retains every original stock verify/patch directive and all 33 library bindings for
-`libCarPlayCore.so` MD5 `d3a47296437df56fb1ffc7ac3dfca4cb`; no manufacturer binary is included.
+The ev6.5 native segment retains the original stock guards and 33 bindings, and adds the fork's guarded `/command`
+hook and 14 bindings for the **same** `libCarPlayCore.so` MD5 `d3a47296437df56fb1ffc7ac3dfca4cb`.
+No manufacturer binary is included; no other firmware recipe is imported.
 
 ## Install and test
 
-For the existing installation, use **`cp-climate-1.3.3-ev6.4-usb.zip`** from the private release.
+For the existing installation, use **`cp-climate-1.3.3-ev6.5-usb.zip`** from the private release.
 Keep the existing wireless and theme-enabled routing mods. See [installation and test steps](docs/INSTALL-EV6.md).
-The complete `carplay-ultra-lite-ev6-1.3.3-ev6.4-install-usb.zip` also carries the unchanged signed routing dependency
+The complete `carplay-ultra-lite-ev6-1.3.3-ev6.5-install-usb.zip` also carries the unchanged signed routing dependency
 and its source for an installation that needs it. The checker USB ZIP is optional for this car.
 
 The owner's evidence and unresolved issues are recorded in [EV6-VALIDATION.md](docs/EV6-VALIDATION.md).
@@ -98,6 +120,7 @@ Fast host checks need Python 3.9+, JDK 11+ and clang. Full checks compile agains
 
 ```sh
 python3 tools/test.py --android-jar /path/to/android.jar --sdk /path/to/hmgapi-sdk
+python3 tools/test_video.py
 ```
 
 After changing page rows or version, regenerate the description and native segment before testing/packaging:
@@ -108,13 +131,17 @@ python3 tools/rebuild_segment.py --zig /path/to/zig
 python3 tools/test.py --android-jar /path/to/android.jar --sdk /path/to/hmgapi-sdk
 python3 tools/package.py mod --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
 python3 tools/package.py check --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
-python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.4.zip --sdk /path/to/hmgapi-sdk
+python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.5.zip --sdk /path/to/hmgapi-sdk
 ```
 
 `test.py` also uses Python `cryptography` for the independent encrypted transport test.
+`test_video.py` uses only local TLS/HTTP fixtures and verifies the pinned library downloads.
 `rebuild_segment.py` needs clang, Zig's linker and pyelftools. It reuses pinned stock bindings and guards;
 it cannot port another stock library. That still requires its stock file and the original `tools/build.py` workflow.
 Tool versions and checksums are in [tools/toolchain.json](tools/toolchain.json).
+The mod build merges the optional video engine into one DEX with pinned R8 8.5.35; checker builds use D8 8.3.37.
+Application sources compile against API 19. R8 links against a verified API 34 jar to resolve ExoPlayer's guarded
+newer-platform code, while retaining DEX 035 / minimum API 19. Dependencies and hashes are in `video/fetch-libs.sh`.
 
 Packages target DEX 035 / API 19 and use the persistent author key at
 `~/.config/carplay-ultra-lite-ev6/author.key`. Only [the public key](signing/author.pub) belongs in Git.
@@ -130,3 +157,4 @@ Based on [LIVI by Lasse Heitgres](https://github.com/f-io/LIVI).
 CarPlay Ultra-Lite and this fork are GPL-3.0-or-later; retain [LICENSE](LICENSE), [NOTICE](NOTICE),
 [mod/NOTICE.md](mod/NOTICE.md) and the source-data notices. Upstream source archive SHA-256:
 `ea679ecf94764d71b550704d0d69fce8cf0a0f16dd94b554b9bd8d7c4f5e2f45`.
+The ev6.5 port also credits joshuaauger v1.1.15; bundled video dependency licenses are in [video/licenses](video/licenses).

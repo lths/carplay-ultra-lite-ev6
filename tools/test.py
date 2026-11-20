@@ -38,9 +38,9 @@ def main():
         run("Native hooks", [native])
         classes = work / "classes"
         classes.mkdir()
-        names = ["Bplist", "ChaChaPoly", "ClimateMap", "Opack", "OpackCodec", "OpackSummary", "VehiclePage", "VehicleState", "VsChannel", "VsData", "CarApi", "CarPlayMedia", "VideoContext"]
+        names = ["Bplist", "ChaChaPoly", "ClimateMap", "Opack", "OpackCodec", "OpackSummary", "VehiclePage", "VehicleDescription", "VehicleState", "VsChannel", "VsData", "CarApi", "CarPlayMedia", "VideoContext", "ParkedState", "VideoStreamSink"]
         sources = [SRC / (name + ".java") for name in names]
-        tests = ["ClimateMapTest", "SessionPairTest", "CompatibilityTest", "CarPlayMediaTest", "DiagnosticsTest", "VideoContextTest", "VsChannelTest"]
+        tests = ["ClimateMapTest", "SessionPairTest", "CompatibilityTest", "CarPlayMediaTest", "DiagnosticsTest", "VideoContextTest", "VsChannelTest", "ForkImprovementsTest", "ParkedStateTest", "VideoStreamSinkTest"]
         sources += [ROOT / "tests" / (name + ".java") for name in tests]
         sources += [ROOT / "check/src/ioniq6/cpclimate/check/Main.java", ROOT / "tests/CheckReportTest.java"]
         run("Compile host Java and checker", ["javac", "--release", "8", "-d", classes, *sources])
@@ -48,6 +48,9 @@ def main():
         run("CarPlay audio resume", ["java", "-cp", classes, "ioniq6.cpclimate.CarPlayMediaTest"])
         run("OPACK diagnostics and route privacy", ["java", "-cp", classes, "ioniq6.cpclimate.DiagnosticsTest"])
         run("Video event context", ["java", "-cp", classes, "ioniq6.cpclimate.VideoContextTest"])
+        run("Front comfort and full description", ["java", "-cp", classes, "ioniq6.cpclimate.ForkImprovementsTest"])
+        run("Park feedback guard", ["java", "-cp", classes, "ioniq6.cpclimate.ParkedStateTest"])
+        run("Encrypted video side streams", ["java", "-cp", classes, "ioniq6.cpclimate.VideoStreamSinkTest", work])
         run("Encrypted vehicle-state transport", ["java", "-cp", classes, "ioniq6.cpclimate.VsChannelTest", work, sys.executable, ROOT / "tests/phone_sim.py"])
         run("Session pairing", ["java", "-cp", classes, "ioniq6.cpclimate.SessionPairTest", work])
         run("Compatibility verdicts", ["java", "-cp", classes, "ioniq6.cpclimate.check.CheckReportTest"])
@@ -79,23 +82,23 @@ def main():
             full.mkdir()
             sdk = args.sdk.resolve() / "lib"
             cp = os.pathsep.join(str(p.resolve()) for p in (args.android_jar, sdk / "hmgapi-runtime.jar", sdk / "hmgapi-runtime-stubs.jar"))
-            extra = [ROOT / "tests/VehiclePageTest.java", ROOT / "tests/AudioNoticeTest.java", ROOT / "tools/MkVspi.java"]
+            extra = [ROOT / "tests/VehiclePageTest.java", ROOT / "tests/AudioNoticeTest.java", ROOT / "tests/VideoMessagesTest.java", ROOT / "tools/MkVspi.java"]
             run("Compile all mod sources", ["javac", "--release", "8", "-cp", cp, "-d", full, *SRC.glob("*.java"), *extra])
             runtime = str(full) + os.pathsep + cp
             run("Vehicle page", ["java", "-cp", runtime, "ioniq6.cpclimate.VehiclePageTest"])
             run("Audio and notices", ["java", "-cp", runtime, "ioniq6.cpclimate.AudioNoticeTest"])
+            run("Video command protocol and privacy", ["java", "-cp", runtime, "ioniq6.cpclimate.VideoMessagesTest"])
             generated = subprocess.run(["java", "-cp", runtime, "ioniq6.cpclimate.MkVspi", "EV6"],
-                    cwd=ROOT, text=True, capture_output=True, check=True, timeout=60)
+                    cwd=ROOT, capture_output=True, check=True, timeout=60)
             blob = (ROOT / "data/vspi.bplist").read_bytes()
             description = plistlib.loads(blob)
-            baked = [a["services"] for cfg in description["pluginConfigs"] for a in cfg["accessories"] if a["iid"] == 1280]
-            if baked != [json.loads(generated.stdout)]:
-                raise SystemExit("native Vehicle page differs from runtime; run tools/build_description.py and rebuild the native segment")
+            if description != plistlib.loads(generated.stdout):
+                raise SystemExit("native description differs from runtime; run tools/build_description.py and rebuild the native segment")
             recipe = (ROOT / "mod/recipes/carplay-climate-m1.recipe").read_text()
             segments = [bytes.fromhex(line.split()[2]) for line in recipe.splitlines() if line.startswith("segment ")]
             if len(segments) != 1 or segments[0].count(blob) != 1:
                 raise SystemExit("native recipe does not contain the current Vehicle page exactly once; rebuild the native segment")
-            print("Native/runtime Vehicle page and embedded recipe: PASS", flush=True)
+            print("Complete native/runtime description and embedded recipe: PASS", flush=True)
         else:
             print("Full Android compilation skipped (provide --android-jar and --sdk)")
 

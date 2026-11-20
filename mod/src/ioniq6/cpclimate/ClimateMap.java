@@ -45,6 +45,7 @@ final class ClimateMap {
         float driverC = Float.NaN, passengerC = Float.NaN, passengerF = Float.NaN;
         int driverState = -1, passengerState = -1;
         int driverSeat = -1, passengerSeat = -1;
+        int wheel = -1;
         /** getDriverOnlyValue: 1 driver only, 0 off, -1 not read */
         int driverOnly = -1;
         /** the car's temperature unit: 1 °C, 2 °F, -1 not read */
@@ -54,6 +55,8 @@ final class ClimateMap {
     }
 
     static final int CELSIUS = 1;
+    /** Last valid setpoints while HVAC was on; the off-state 17 C reading is not a setpoint. */
+    static Double lastDriver, lastPassenger;
 
     static Map<Long, Object> toCarPlay(Reading r) {
         Map<Long, Object> v = new LinkedHashMap<Long, Object>();
@@ -81,8 +84,10 @@ final class ClimateMap {
         if (known(r.intake)) v.put(RECIRCULATION, r.intake == 1);
         if (known(r.mode)) vents(v, (int) r.mode);
         boolean celsius = r.unit == CELSIUS;
-        Double driver = known(r.driverF) ? Double.valueOf(celsius ? temperature(r.driverF) : fahrenheit(r.driverF))
+        boolean off = known(r.on) && r.on != 1;
+        Double driver = off ? lastDriver : known(r.driverF) ? Double.valueOf(celsius ? temperature(r.driverF) : fahrenheit(r.driverF))
                 : r.driverState == TEMP_NORMAL && known(r.driverC) ? Double.valueOf(temperature(r.driverC)) : null;
+        if (r.on == 1 && driver != null) lastDriver = driver;
         if (driver != null) v.put(DRIVER_TARGET, driver);
         if (known(r.sync) && known(r.passengerRaw)) {
             boolean synced = r.sync == 1;
@@ -93,14 +98,17 @@ final class ClimateMap {
                 v.put(PASSENGER_ZONE_ON, r.on == 1 && zone);
             }
             Double passenger = synced ? driver
+                    : off ? lastPassenger
                     : !zone ? null
                     : r.passengerState == TEMP_NORMAL && celsius && known(r.passengerC) ? Double.valueOf(temperature(r.passengerC))
                     : r.passengerState == TEMP_NORMAL && !celsius && known(r.passengerF) ? Double.valueOf(fahrenheit(r.passengerF))
                     : Double.valueOf(temperature(r.passengerRaw / 2.0 + 14));
             if (passenger != null) v.put(PASSENGER_TARGET, passenger);
+            if (r.on == 1 && zone && passenger != null) lastPassenger = passenger;
         }
         seat(v, r.driverSeat, DRIVER_SEAT_LEVEL, DRIVER_SEAT_ON);
         seat(v, r.passengerSeat, PASSENGER_SEAT_LEVEL, PASSENGER_SEAT_ON);
+        if (VehicleDescription.wheelHeat && (r.wheel == 0 || r.wheel == 1)) v.put(VehicleDescription.WHEEL_LEVEL, (long) r.wheel);
         return v;
     }
 
@@ -133,15 +141,20 @@ final class ClimateMap {
     static void seat(Map<Long, Object> v, int state, long levelIid, long onIid) {
         long level;
         switch (state) {
-            case 2: case 3: case 4: case 5: level = 0; break;
+            case 2: level = 0; break;
+            case 3: case 4: case 5: level = VehicleDescription.seatCooling ? coolingLevel(state) : 0; break;
             case 6: level = 1; break;
             case 7: level = 2; break;
             case 8: level = 3; break;
             default: return;
         }
         v.put(levelIid, level);
-        v.put(onIid, level > 0);
+        v.put(onIid, level != 0);
     }
+
+    /** v1.1.15's four-dot cooling range: the car still has three physical ventilation levels. */
+    static long coolingLevel(int state) { return state == 5 ? -4 : state == 4 ? -2 : -1; }
+    static int coolingState(long level) { return level <= -4 ? 5 : level <= -2 ? 4 : 3; }
 
     /** a °F setpoint as the half degree °C the phone shows as the same °F */
     static double fahrenheit(double f) {
@@ -220,6 +233,9 @@ final class ClimateMap {
                 out.add(new Command(REAR, (Long) v > 0 ? 1 : 0, 0, 0));
             } else if (iid == RECIRCULATION && v instanceof Boolean) {
                 out.add(new Command(VR, 11, (Boolean) v ? 1 : 2, 0));
+            } else if (VehicleDescription.wheelHeat && iid == VehicleDescription.WHEEL_LEVEL && v instanceof Long
+                    && ((Long) v == 0 || (Long) v == 1)) {
+                out.add(new Command(WHEEL, ((Long) v).intValue(), 0, 0));
             } else if ((iid == PASSENGER_ON || iid == PASSENGER_ZONE_ON) && v instanceof Boolean) {
                 // the passenger zone off is the car's Driver Only; turning it on while the system is off
                 // starts the system first (unless the phone turned hvacOn on in the same write)
@@ -292,11 +308,13 @@ final class ClimateMap {
         long l;
         if (onOff) {
             if (!(v instanceof Boolean)) return null;
-            l = (Boolean) v ? Math.max(1, number(level, 1)) : 0;
+            long last = number(level, 1);
+            l = (Boolean) v ? (last != 0 && (last > 0 || VehicleDescription.seatCooling) ? last : 1) : 0;
         } else {
             if (!(v instanceof Long)) return null;
-            l = Math.max(0, Math.min(3, (Long) v));
+            l = Math.max(VehicleDescription.seatCooling ? -4 : 0, Math.min(3, (Long) v));
         }
+        if (l < 0) return new Command(SEAT, code, coolingState(l), 0);
         return new Command(SEAT, code, l == 0 ? 2 : (int) l + 5, 0);
     }
 

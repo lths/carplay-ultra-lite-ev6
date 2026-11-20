@@ -1,1 +1,3 @@
 *.recipe -text whitespace=cr-at-eol
+# Preserve dependency license texts exactly as fetched from their upstream sources.
+video/licenses/* -whitespace

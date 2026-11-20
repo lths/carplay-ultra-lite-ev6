@@ -194,7 +194,15 @@ final class VehicleState {
             out.log("VS vehicle page not set: no automaker settings accessory");
         }
         paged = withPage != null ? p : null;
+        acc = VehicleDescription.apply(acc, values, names, writable, shared);
         accessories = new OpackCodec.Raw(acc);
+    }
+
+    /** The same complete description is used by /info and the live vehicle-state channel. */
+    byte[] vspi() {
+        return Bplist.encode(dict("protocolVersion", "1.0", "pluginCount", 1L, "pluginMapping", dict("LIVI", 0L),
+                "pluginConfigs", java.util.Arrays.asList(dict("name", "LIVI", "pluginID", 0L,
+                        "accessories", OpackCodec.decode(accessories.b)))));
     }
 
     synchronized List<Out> handle(int lane, byte[] message) {
@@ -478,7 +486,8 @@ final class VehicleState {
             long levelIid = pair[0], onIid = pair[1];
             Object level = find(written, levelIid), on = find(written, onIid);
             if (level instanceof Long) {
-                carSets(onIid, (Long) level > 0, changed);
+                boolean cooling = VehicleDescription.seatCooling && levelIid != FAN_LEVEL;
+                carSets(onIid, cooling ? (Long) level != 0 : (Long) level > 0, changed);
             } else if (on instanceof Boolean) {
                 boolean isOn = (Boolean) on;
                 boolean held = values.containsKey(levelIid);

@@ -1,13 +1,13 @@
 {
   "id": "cp-climate",
   "name": "CarPlay Ultra-Lite",
-  "version": "1.3.3-ev6.4",
+  "version": "1.3.3-ev6.5",
   "hmgapi": ">=1.1.0-rc.1",
   "authors": [
     "cp-climate contributors"
   ],
   "license": "GPL-3.0-or-later",
-  "description": "Experimental 2024 EV6 USA 260507 update: bounded route field/size logging without payload text, OPACK parser reason/offset/tag diagnostics, video-event foreground and app-launch context, and quieter Vehicle-page command logging. Retains ev6.3 last-CarPlay-audio resume and the working climate, comfort, volume and vehicle readings. Requires working wireless CarPlay and HMG-API 1.1.0-rc.1 or later; Ultra themes need the theme-enabled routing dependency. Audio resume and visual freeze behavior still need on-car validation. Based on CarPlay Ultra-Lite and LIVI (GPL-3.0).",
+  "description": "EV6 USA 260507 port of selected joshuaauger v1.1.15 improvements: compact OPACK -1, no forced DAB source, complete matching cached vehicle descriptions, native Climate ventilation/wheel widgets, and remembered setpoints while climate is off. Includes optional AirPlay video with upstream controls, stream recovery and sync; off by default and requires fresh Park feedback. Retains EV6 BCM feedback, direct wheel command, page IDs, volume, audio resume and filtered diagnostics. New widgets and video require on-car validation. Based on CarPlay Ultra-Lite and LIVI (GPL-3.0).",
   "requires": [
     "wireless-carplay-aa"
   ],
@@ -50,6 +50,41 @@
           "7130-7135"
         ],
         "action": "accept"
+      },
+      {
+        "chain": "input",
+        "in": "hotspot",
+        "proto": "tcp",
+        "ports": [
+          "7138-7139"
+        ],
+        "action": "accept",
+        "when": "settings.video_playback",
+        "comment": "encrypted video side streams, acknowledged and discarded"
+      },
+      {
+        "chain": "output",
+        "out": "hotspot",
+        "proto": "tcp",
+        "state": [
+          "new",
+          "established"
+        ],
+        "action": "accept",
+        "when": "settings.video_playback",
+        "comment": "phone video proxy, only while optional video is enabled"
+      },
+      {
+        "chain": "input",
+        "in": "hotspot",
+        "proto": "tcp",
+        "state": [
+          "established",
+          "related"
+        ],
+        "action": "accept",
+        "when": "settings.video_playback",
+        "comment": "phone proxy replies"
       }
     ]
   },

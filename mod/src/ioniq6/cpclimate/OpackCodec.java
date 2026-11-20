@@ -136,6 +136,8 @@ final class OpackCodec {
         if (tag == 0x01) return Boolean.TRUE;
         if (tag == 0x02) return Boolean.FALSE;
         if (tag == 0x04) return null;
+        // joshuaauger v1.1.15: iOS uses the compact -1 tag for the first cooling step.
+        if (tag == 0x07) return -1L;
         if (tag == 0x05) return remember(new Uuid(take(16)));
         if (tag == 0x06 || tag == 0x36) return remember(Double.longBitsToDouble(unsigned(8)));
         if (tag == 0x35) return remember((double) Float.intBitsToFloat((int) unsigned(4)));

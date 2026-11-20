@@ -245,6 +245,9 @@ final class CarClimate extends Thread implements VehicleState.Car {
         if (c.kind == ClimateMap.SEAT && (!seatFeedbackFresh()
                 || !ClimateMap.seatStateKnown(c.a == ClimateMap.SET_DRIVER_SEAT ? driverSeatState : passengerSeatState)))
             throw new IllegalStateException("seat command withheld until live body-controller feedback is known");
+        if (c.kind == ClimateMap.SEAT && c.b >= 3 && c.b <= 5
+                && (c.a == ClimateMap.SET_DRIVER_SEAT ? driverSeatOption : passengerSeatOption) != 6)
+            throw new IllegalStateException("ventilation withheld: seat option 6 not confirmed");
         if ((c.kind == ClimateMap.VR || c.kind == ClimateMap.FRONT)
                 && (!climateFlagsOk || (unit != ClimateMap.CELSIUS && unit != ClimateMap.FAHRENHEIT)))
             throw new IllegalStateException("climate command withheld: flag layout or temperature unit is not verified");
@@ -422,6 +425,7 @@ final class CarClimate extends Thread implements VehicleState.Car {
         if (!feedback.equals(lastSeatFeedback)) { out.log("CAR seat feedback " + feedback); lastSeatFeedback = feedback; }
         if (rearDefrost || txWheel >= 0) {
             watchBody();
+            r.wheel = body.wheel;
             if (rearDefrost) r.rearDefog = body.defogger;
         }
         return r;

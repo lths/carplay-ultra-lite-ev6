@@ -4,6 +4,15 @@
 @ the library left them.
 #include "cpc.h"
 
+@ /command's registers differ between libCarPlayCore builds (tools/build.py passes them):
+@ the request plist's register and the error slot's offset on the stack.
+#ifndef CPC_CMD_PLIST
+#define CPC_CMD_PLIST r7
+#endif
+#ifndef CPC_CMD_ERR
+#define CPC_CMD_ERR 0x7c
+#endif
+
     .syntax unified
     .thumb
     .section .text.entry, "ax", %progbits
@@ -67,6 +76,36 @@ cpc_stub_stream:
 1:  ldr     r3, [r12, #(T_RET_STREAM_DONE * 4)]
     add     r3, r12
     bx      r3                      @ 0x11724: next stream
+
+@ b.w at 0xaf10, in place of "mov r9, r0" + "cmp r0, #0": POST /command has just looked up the
+@ request's "type" (r0, NULL if none). The request plist is in r7, the HTTP request in r4.
+@ cpc_command_hook answers 1 for a command it takes (the video in car messages, which have no
+@ type, and the two video setup commands): a 200 with no body. 0: DiPO's own path.
+    .global cpc_stub_command
+    .thumb_func
+cpc_stub_command:
+    mov     r9, r0                  @ the first replaced instruction
+    push    {r0, lr}
+    mov     r1, CPC_CMD_PLIST
+    mov     r2, r4
+    bl      cpc_command_hook        @ r0 = type, r1 = plist, r2 = HTTP request
+    mov     r3, r0
+    pop     {r0, lr}
+    adr.w   r12, cpc_table
+    cbnz    r3, 2f
+    cbz     r0, 1f
+    ldr     r3, [r12, #(T_CMD_TYPED * 4)]
+    add     r3, r12
+    bx      r3                      @ 0xaf18: typed, as stock
+1:  ldr     r3, [r12, #(T_CMD_451 * 4)]
+    add     r3, r12
+    bx      r3                      @ 0xb6d0: no type, as stock (451)
+2:  mov.w   r4, #200                @ status, as the stock error paths set it
+    movs    r3, #0
+    str     r3, [sp, #CPC_CMD_ERR]  @ err = 0
+    ldr     r3, [r12, #(T_CMD_DONE * 4)]
+    add     r3, r12
+    bx      r3                      @ 0xaf6c: release the plist, send the reply
 
 @ long cpc_sys3(long nr, long a, long b, long c): a Linux system call (diagnostic variant).
 @ In assembly because r7, which carries the call number, is the Thumb frame pointer.

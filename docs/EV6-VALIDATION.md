@@ -249,6 +249,28 @@ The exact rejected 73,861-byte payload from the owner's earlier capture is unava
 future diagnostics; it does not establish that packet's cause or claim a spontaneous-freeze repair. New logs
 need an on-car check. ev6.3 audio resume, vehicle command mappings, native guards and listener checks are retained.
 
+## joshuaauger port, 2026-11-19 (ev6.5)
+
+Selected changes from joshuaauger v1.1.15, commit `4f739c79c3d884f47f914468148213994d46ca46`, are integrated:
+compact OPACK -1, native front cooling and wheel widgets, declared HVAC power, neutral initial media source,
+remembered off-state temperatures and complete matching/versioned descriptions. Existing EV6 control paths,
+BCM feedback guards, stable Vehicle IDs and explicit last-audio resume are retained.
+
+Optional AirPlay video is included, off by default. It requires fresh Park feedback and an active CarPlay session;
+unknown/stale/non-Park feedback or session loss stops the player. The source import adds retries, overlay controls,
+live/VOD sync and phone-proxy TLS. Raw video-side recording is replaced by an acknowledging sink, and diagnostic
+URLs/auth headers are redacted. See [the source audit](JOSHUA-1.1.15-PORT.md) and [parked test steps](INSTALL-EV6.md).
+
+Host validation passes for all prior suites and the new comfort/schema, OPACK-reference, Park-freshness,
+encrypted-side-stream and video-command cases. Local video tests pass synchronization, TLS 1.3 PSK authentication,
+certificate parsing, HTTP ranges/redirects/chunking, parallel retry and diagnostic redaction. Full mod sources
+compile against API 19. SDK hook-floor and script checks pass.
+
+The native segment retains original guards and 33 bindings and adds the pinned fork's same-library command hook
+with one additional verify site and 14 bindings (47 total). It does not import the fork's other-firmware recipe.
+The new Climate UI, actual Park feedback, hardware decoding and phone playback/handoff remain **unverified on car**.
+The old rejected packet's exact payload remains unavailable, and spontaneous freezing has not been reproduced.
+
 ## Host validation of ev6.2
 
 - Native hook behavior, climate mapping, session pairing, firmware mismatch guards, Vehicle-page updates/actions,
