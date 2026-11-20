@@ -96,7 +96,7 @@ def main():
         (report_folder / "README.txt").write_text("Optional checker export folder. The installed checker may copy cp-climate-check.md and .json here on its next run.\n")
         log_folder = contents / "CarPlayUltraLite-Logs"
         log_folder.mkdir()
-        (log_folder / "README.txt").write_text("Filtered climate/video diagnostics are copied to ev6-carplay.log while this folder is on an inserted USB stick.\n")
+        (log_folder / "README.txt").write_text("Filtered climate/video/media diagnostics are copied to ev6-carplay.log while this folder is on an inserted USB stick.\n")
         commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
         build = {
             "mod_source_commit": commit,

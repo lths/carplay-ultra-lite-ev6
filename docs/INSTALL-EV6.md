@@ -1,25 +1,38 @@
-# EV6 ev6.2 update and test
+# EV6 ev6.3 update and test
 
-For the owner's existing installation, use **cp-climate-1.3.3-ev6.2-usb.zip**.
-This updates CarPlay Ultra-Lite only. The new build has passed host checks; its behavior on the car is still unverified.
+For the owner's existing installation, use **cp-climate-1.3.3-ev6.3-usb.zip**.
+This updates CarPlay Ultra-Lite only. The audio-resume change needs an on-car test; the working ev6.2 climate mappings are retained.
 
 ## Update
 
 1. Confirm HMG-API is **1.1.0-rc.1 or later**. The new video observer hooks require that version.
 2. Unzip the update USB ZIP. Copy **HMGAPI** and **CarPlayUltraLite-Logs** to the USB stick root.
-3. In HMG-API, select **Check USB updates**, install **CarPlay Ultra-Lite 1.3.3-ev6.2**, apply and restart the unit.
+3. In HMG-API, select **Check USB updates**, install **CarPlay Ultra-Lite 1.3.3-ev6.3**, apply and restart the unit.
    Keep the working official wireless mod and the existing theme-enabled routing mod enabled.
 4. Keep **CarPlay Ultra** on in this mod and the matching **CarPlay theme** on in the routing mod.
-5. Delete the car pairing on the head unit. On the iPhone, forget the car in **Settings → General → CarPlay**
-   and Bluetooth, then pair again. Re-pairing refreshes the changed Vehicle-page description.
-   Remove the installation USB stick while establishing wireless CarPlay. Keep the phone online for any theme download.
-6. Check the version under CarPlay's **Vehicle → Head unit** section: **1.3.3-ev6.2**.
+5. Reconnect CarPlay. Remove the installation USB stick while establishing wireless CarPlay.
+   If the Vehicle page still labels the shortcut **Radio**, forget the car on both the head unit and the iPhone
+   (**Settings → General → CarPlay**, plus Bluetooth), then pair again to refresh the cached page description.
+   The old Radio action identifier is retained and also requests CarPlay audio after this update.
+6. Check the version under CarPlay's **Vehicle → Head unit** section: **1.3.3-ev6.3**.
 
 The update uses the same private author key as ev6.1, UUID `51951394-274a-8d4b-8396-c831913a9a44`.
 Do not uninstall that existing private mod to update it. An upstream copy signed by another author cannot
 be updated with this key; it must be removed before installing this fork.
 
 ## Test while parked
+
+First test audio: play something in the desired CarPlay app, such as Audiobooth or Music. Pause it,
+then tap **Vehicle → Head unit → Resume CarPlay audio**. It should open Now Playing and request playback
+from the iPhone's current audio session, retaining its app and position. Confirm that Kia's FM screen stays closed.
+Then disconnect/reconnect CarPlay: it should request playback once after roughly three seconds.
+Repeat with audio already playing; an explicit Play request should not pause it.
+
+**Resume last CarPlay audio on connect** is enabled by default in HMG-API's CarPlay Ultra-Lite settings.
+Turn it off for manual resume only; it is read at the next connection. The receiver cannot guarantee that
+an app which the phone closed, or one needing login/network access, will resume. The log records submitted
+requests, not a playback confirmation. If Now Playing opens without playback, collect the `MEDIA` lines;
+there is deliberately no automatic Play/Pause toggle fallback or repeated retry.
 
 1. Compare **battery, range and odometer** against Kia's own displays. They should occupy their correct rows.
 2. Use the existing Climate page to try seat heat at **3 → 2 → 1 → Off**. Confirm physical feedback,
@@ -28,8 +41,9 @@ be updated with this key; it must be removed before installing this fork.
    “State unavailable” means the required feedback is missing and the command is withheld. Ventilation requires option 6.
    These controls are on the Vehicle page; native Climate-page ventilation/wheel widgets have not been added.
 4. Recheck temperature, fan and SYNC, which worked in ev6.1. Check defrost separately; rear defrost requires READY.
-5. Open **Vehicle → Head unit → Radio** to use Kia's radio and select FM there.
-   Integrated CarPlay radio tuning remains unimplemented, so the DAB message may remain in CarPlay's Radio app.
+5. CarPlay's integrated Radio controls also request CarPlay audio instead of handing off to Kia FM.
+   Integrated radio tuning remains unimplemented, so the DAB message may remain in CarPlay's Radio app.
+   Use Kia's own menu when you want its FM radio.
 6. Observe whether the center image still freezes. The lower virtual-cluster frame rate is a test mitigation,
    not a confirmed repair. Themes still do not replace the driver's instrument display.
 
@@ -45,7 +59,7 @@ be updated with this key; it must be removed before installing this fork.
    the problem. The root helper copies a recent filtered log to **CarPlayUltraLite-Logs/ev6-carplay.log**.
    Remove the stick and share that file. It excludes receiver handshakes and unrelated mods.
 
-Useful lines start with **CAR seat feedback**, **VS phone set**, **CAR sent**, **STOCK**, **VIDEO**, or **VEH**.
+Useful lines start with **CAR seat feedback**, **VS phone set**, **CAR sent**, **STOCK**, **VIDEO**, **MEDIA**, or **VEH**.
 The export is a recent log snapshot, not a complete session recording; collect it soon after the test.
 If no file appears, use HMG-API → Mods → CarPlay Ultra-Lite → Log, or Logs → Mods → Refresh; photos remain useful.
 The old compatibility Markdown report is not required to proceed.
@@ -57,7 +71,7 @@ to the 12 V battery and is not used for traction-battery percentage.
 ## Complete install bundle
 
 For an installation missing the theme dependency, the alternative
-**carplay-ultra-lite-ev6-1.3.3-ev6.2-install-usb.zip** contains the private mod and the original signed
+**carplay-ultra-lite-ev6-1.3.3-ev6.3-install-usb.zip** contains the private mod and the original signed
 **E-GMP CarPlay EV Routing 0.4.3-ioniq6.15**, plus that routing build's source and notices.
 Install routing first, then CarPlay Ultra-Lite. Its Ioniq 6 suffix also lists EV6 USA 260507 in its signed profiles.
 Routing author UUID: `4bec7579-9d68-8e3c-b667-2804d05a20b9`.

@@ -22,8 +22,16 @@
    "type": "toggle",
    "default": true,
    "title": "The car's page in CarPlay's Vehicle app",
-   "description": "CarPlay's Vehicle app shows the car's battery level, range and odometer (read from the car, nothing is sent to it), switches for the Light Vibes ambient light effect and for battery preconditioning (Launchpad sends the request, with its own checks and time limit), and buttons that open the head unit's own screens: the car's home screen, Light Vibes, HMG-API, NEMESIS Manager, radio, EV and vehicle settings. Off: the rows stay in the Vehicle app, because the phone is given them when CarPlay connects, but they show no readings and do nothing. Restart the head unit afterwards.",
+   "description": "CarPlay's Vehicle app shows the car's battery level, range and odometer (read from the car, nothing is sent to it), switches for the Light Vibes ambient light effect and for battery preconditioning (Launchpad sends the request, with its own checks and time limit), and buttons that open the head unit's own screens: the car's home screen, Light Vibes, HMG-API, NEMESIS Manager, EV and vehicle settings, plus Resume CarPlay audio for the iPhone's current audio session. Off: the rows stay in the Vehicle app, because the phone is given them when CarPlay connects, but they show no readings and do nothing. Restart the head unit afterwards.",
    "apply": "restart"
+  },
+  {
+   "key": "resume_carplay_audio",
+   "type": "toggle",
+   "default": true,
+   "title": "Resume last CarPlay audio on connect",
+   "description": "Three seconds after CarPlay connects, open Now Playing and request Play from the iPhone's current audio app. The iPhone keeps the last app, queue and position. Sends Play once, with no repeated retries. Off: resume only from Vehicle > Head unit > Resume CarPlay audio. Takes effect on the next connection. Playback depends on the iPhone and audio app accepting the request.",
+   "apply": "live"
   },
   {
    "key": "volume_link",

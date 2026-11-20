@@ -95,6 +95,8 @@ public class VehiclePageTest {
         check("legacy battery, range, odometer and radio retain the native description's identities",
                 minimal.item("battery").valueIid() == 20595 && minimal.item("range").valueIid() == 20627
                 && minimal.item("odometer").valueIid() == 20643 && minimal.item("open_radio").valueIid() == 20723);
+        check("the legacy Radio shortcut is labelled for resuming phone audio",
+                "Resume CarPlay audio".equals(minimal.item("open_radio").label));
         java.util.Set<Long> pinned = new java.util.HashSet<Long>();
         for (VehiclePage.Item item : complete.items()) pinned.add(item.iid);
         check("comfort rows have unique identities outside the legacy rows", pinned.size() == complete.items().size()

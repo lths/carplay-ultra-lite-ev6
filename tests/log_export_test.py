@@ -32,6 +32,7 @@ esac
         "[cp-climate] STOCK com.android.vehiclesettings setFrontClimateControl[11, 0]",
         "[cp-climate] VIDEO dipo.carplay.screen_timeout []",
         "[cp-climate] VEH soc 61.0 range 190 km",
+        "[cp-climate] MEDIA Play down: Success",
     ]) + "\n")
     env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ["PATH"], HMGAPI_DATA=str(state),
         EV6_TEST_USB=str(usb), EV6_TEST_INPUT=str(inputs))
@@ -43,6 +44,7 @@ esac
     output = (usb / "ev6-carplay.log").read_text()
     assert "BCM 2/2" in output and "recirculationOn to false" in output and "setFrontClimateControl[11, 0]" in output
     assert "VIDEO" in output and "VEH soc" in output
+    assert "MEDIA Play down: Success" in output
     assert "secret-placeholder" not in output and "unrelated-placeholder" not in output
     inputs.write_text("unrelated log lines only\n")
     export()

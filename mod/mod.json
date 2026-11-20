@@ -1,13 +1,13 @@
 {
   "id": "cp-climate",
   "name": "CarPlay Ultra-Lite",
-  "version": "1.3.3-ev6.2",
+  "version": "1.3.3-ev6.3",
   "hmgapi": ">=1.1.0-rc.1",
   "authors": [
     "cp-climate contributors"
   ],
   "license": "GPL-3.0-or-later",
-  "description": "Experimental 2024 EV6 USA 260507 update: stable Vehicle page identities, BCM seat feedback, guarded seat ventilation and wheel-heat controls under Vehicle > Comfort, and diagnostic logging. Requires HMG-API 1.1.0-rc.1 or later and working wireless CarPlay. Ultra themes require the theme-enabled E-GMP routing dependency. Recirculation-off and visual freezes still need on-car diagnosis; integrated FM tuning and driver-display Ultra gauges are not implemented. Based on CarPlay Ultra-Lite and LIVI (GPL-3.0).",
+  "description": "Experimental 2024 EV6 USA 260507 update: resume the iPhone's current CarPlay audio on connection and from Vehicle > Head unit > Resume CarPlay audio, replacing the FM shortcut. Retains ev6.2 climate, comfort, volume and vehicle readings. Requires working wireless CarPlay and HMG-API 1.1.0-rc.1 or later; Ultra themes need the theme-enabled routing dependency. Audio resume needs on-car validation. Recirculation-off, visual freezes and physical driver-display Ultra gauges remain unresolved. Based on CarPlay Ultra-Lite and LIVI (GPL-3.0).",
   "requires": [
     "wireless-carplay-aa"
   ],

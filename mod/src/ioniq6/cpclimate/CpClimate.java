@@ -33,7 +33,7 @@ public final class CpClimate extends ModEntry {
     /** left in DiPO's files folder at each CarPlay session when adb_keepalive is on; svc/helper.sh acts on it */
     static final String ADB_REQUEST = "cpc-adb-req";
     /** shown on the Vehicle page; keep in step with mod.json */
-    static final String VERSION = "1.3.3-ev6.2";
+    static final String VERSION = "1.3.3-ev6.3";
     static final String GUARD_FILE = "cp-climate-guard";
     static final int GUARD_STARTS = 2;
     static final long GUARD_MS = 10 * 60 * 1000L;
@@ -49,6 +49,7 @@ public final class CpClimate extends ModEntry {
     static final Set<String> copied = new HashSet<String>();
     static boolean busy;
     static final java.util.concurrent.atomic.AtomicInteger videoLines = new java.util.concurrent.atomic.AtomicInteger();
+    static CarPlayMedia media;
 
 
     /**
@@ -105,6 +106,13 @@ public final class CpClimate extends ModEntry {
                     mod.log(msg);
                 }
             };
+            final android.os.Handler mediaHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            media = new CarPlayMedia(new CarPlayMedia.Later() {
+                @Override public void post(Runnable action, long delayMs) {
+                    mediaHandler.postDelayed(action, delayMs);
+                }
+            }, log);
+            VehicleState.mediaControls = media;
             VehicleState[] state = new VehicleState[1];
             VsChannel[] lanes = new VsChannel[2];
             for (int lane = 0; lane < 2; lane++) lanes[lane] = new VsChannel(lane, dir, log, state, lanes);
@@ -114,7 +122,7 @@ public final class CpClimate extends ModEntry {
                 VehiclePage.tiles = "off";
                 CarVehicle.driveLog = m.settingBoolean("drive_log", false);
                 try {
-                    CarVehicle vehicle = new CarVehicle(app.context, dir, state, lanes, log, VERSION);
+                    CarVehicle vehicle = new CarVehicle(app.context, dir, state, lanes, log, VERSION, media);
                     VehicleState.page = vehicle.page;
                     vehicle.start();
                 } catch (Throwable t) {
@@ -148,16 +156,11 @@ public final class CpClimate extends ModEntry {
             // the car asks for no layout, so the phone keeps what was picked on its Themes page
             if (uiSync) new UiSyncChannel(dir, log, UiSync.layout("off")).start();
         }
-        MethodHook copy = new MethodHook() {
-            @Override
-            protected void afterHookedMethod(Param p) {
-                copyLater(COPY_DELAY_MS, false);
-            }
-        };
         m.hook(app.classLoader, "dipo.carplay.session_started", new MethodHook() {
             @Override
             protected void afterHookedMethod(Param p) {
                 IapBridge.carPlay = p.thisObject;
+                if (media != null) media.started(p.thisObject, mod.settingBoolean("resume_carplay_audio", true));
                 copyLater(COPY_DELAY_MS, false);
                 // test aid (setting adb_keepalive): CarPlay connecting takes the USB port from adb; the root
                 // service (svc/helper.sh) switches it back a few seconds after this request
@@ -169,7 +172,13 @@ public final class CpClimate extends ModEntry {
                 copyLater(HEALTHY_MS, true);
             }
         });
-        m.hook(app.classLoader, "dipo.carplay.session_finalized", copy);
+        m.hook(app.classLoader, "dipo.carplay.session_finalized", new MethodHook() {
+            @Override
+            protected void afterHookedMethod(Param p) {
+                if (media != null) media.ended(p.thisObject);
+                copyLater(COPY_DELAY_MS, false);
+            }
+        });
         // Observe decoder failures and the stock receiver's own frame requests. This does not
         // claim to repair a frozen Surface or add a second recovery loop to the stock decoder.
         for (final String point : new String[] { "dipo.carplay.decode_failure", "dipo.carplay.force_key_frame", "dipo.carplay.screen_timeout" }) {

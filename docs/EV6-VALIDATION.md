@@ -188,6 +188,38 @@ Units, invalid/sentinel values, AC/DC differences, enum meanings and listener AB
 In particular, [HMG-API's EV6 map](https://github.com/Open-HMG/HMG-API/blob/main/maps/kia/ev6/usa/260507/framework.json)
 identifies `getBatSoc()` as **12 V battery SOC**. It is not substituted for the working traction-battery percent.
 
+## CarPlay audio request, 2026-11-19 (ev6.3)
+
+The owner reports that the Radio shortcut opens Kia's FM screen at its last station, and requests the last
+CarPlay audio app instead, both from the shortcut and automatically when CarPlay connects.
+The existing `CarVehicle` callback explicitly launched `com.hkmc.av.app.radiona`; this was the handoff's cause.
+
+ev6.3 replaces that shortcut's label and action while retaining `open_radio` and action IID **20723**.
+It calls the active DiPO `CarPlayService.requestUI("nowplaying:")`, followed by an explicit
+`onConsumer(Play, true/false)` pair. The iPhone owns app selection, queue and position; no app-specific URL,
+Kia FM launch, Bluetooth handoff, Play/Pause toggle fallback or repeated autoplay loop is added.
+The default-on setting makes one attempt three seconds after the stock session-start callback.
+A manual media action or session end cancels pending autoplay. The path is independent of the optional Vehicle page.
+
+The readable receiver method signatures and Now Playing URL are also used by
+[DeFlight's Gen5W Button Mapper](https://github.com/DeFlight/hmgapi-gen5w-button-mapper/blob/ea25ab3f86a8f44afa3561c7c9ca870a489de1d0/gen5w-button-mapper/src/hooks/com/deflight/buttonmapper/hooks/Entry.java)
+and its [URL choices](https://github.com/DeFlight/hmgapi-gen5w-button-mapper/blob/ea25ab3f86a8f44afa3561c7c9ca870a489de1d0/gen5w-button-mapper/src/app/java/com/deflight/buttonmapper/Choices.java).
+That project's notes report that some phones ignore separate Play/Pause consumer keys. We therefore do not
+treat method resolution or a receiver return value as proof of audible playback on this EV6. An unattended
+toggle would risk pausing audio already playing and is deliberately withheld. Actual phone/app acceptance,
+FM-to-CarPlay audio focus and repeat reconnect behavior need the owner's on-car test.
+
+Host regressions cover one attempt per session, setting-off/manual behavior, duplicate callbacks, manual
+actions overriding autoplay, disconnect/reconnect cancellation, unsupported receiver signatures, explicit
+Play without a toggle, and a paired release after invocation errors. The native Vehicle description must
+match the new runtime label without renumbering any controls. Filtered USB diagnostics include `MEDIA` lines;
+no phone app history or audio metadata is collected.
+
+The full host suite passes, including 18 audio-resume checks, 39 Vehicle-page checks, all-source Android API 19
+compilation, native/runtime schema equality and firmware mismatch guards. HMG SDK hook-floor and shell-command
+checks pass. The rebuilt segment is 95,639 bytes with an 80,002-byte Vehicle description; the original stock
+guards, patch sites and all 33 bindings are preserved. These checks do not establish on-car playback.
+
 ## Host validation of ev6.2
 
 - Native hook behavior, climate mapping, session pairing, firmware mismatch guards, Vehicle-page updates/actions,

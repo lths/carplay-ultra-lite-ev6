@@ -27,7 +27,8 @@ import java.util.concurrent.LinkedBlockingQueue;
  *   have leaves its line at a dash. The charging and tyre status getters are read and logged only, until what
  *   their values mean has been seen on the car.
  * - Buttons that open a screen on the head unit: the car's home screen, the HMG-API app, NEMESIS Manager, the
- *   ambient light app, and the car's own radio, EV and vehicle settings screens. Only the ones this unit has.
+ *   ambient light app, and the car's EV and vehicle settings screens. The legacy Radio shortcut instead
+ *   resumes the current iPhone audio session through CarPlayMedia.
  * - The ambient light effect's switch (Light Vibes): DiPO can't write another app's settings, so the request
  *   goes to a file that the mod's root service (svc/helper.sh) applies, and the state comes back the same way.
  * - Battery preconditioning's switch, through Launchpad (paytondev/gen5w-preconditioning): its own Start and Stop
@@ -54,7 +55,8 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     static final String[][] SCREENS = {
             { "open_hmgapi", "HMG-API", "puzzlepiece.extension", "hmgapi.app/.MainActivity" },
             { "open_nemesis", "NEMESIS Manager", "shippingbox", "com.nemesis.manager/.MainActivity" },
-            { "open_radio", "Radio", "radio", "com.hkmc.av.app.radiona" },
+            // Keep the legacy identifier/IID while replacing the FM shortcut with phone audio.
+            { "open_radio", "Resume CarPlay audio", "play.circle" },
             { "open_ev", "EV", "bolt.car", "com.hkmc.daudio.app.ev3" },
             { "open_vehicle_settings", "Vehicle settings", "gearshape", "com.android.vehiclesettings" },
     };
@@ -76,6 +78,7 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     final VehicleState[] state;
     final VsChannel[] lanes;
     final VsChannel.Log out;
+    private final CarPlayMedia media;
     final VehiclePage page = new VehiclePage();
     private final Map<String, Intent> screens = new LinkedHashMap<String, Intent>();
     private final LinkedBlockingQueue<Runnable> work = new LinkedBlockingQueue<Runnable>();
@@ -173,13 +176,14 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     }
 
     /** the car's section is named after the model the head unit reports */
-    CarVehicle(Context context, File dir, VehicleState[] state, VsChannel[] lanes, VsChannel.Log out, String version) {
+    CarVehicle(Context context, File dir, VehicleState[] state, VsChannel[] lanes, VsChannel.Log out, String version, CarPlayMedia media) {
         super("cp-climate-vehicle");
         this.context = context;
         this.dir = dir;
         this.state = state;
         this.lanes = lanes;
         this.out = out;
+        this.media = media;
         setDaemon(true);
         String product = "";
         try {
@@ -224,16 +228,6 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
         v.put("version", version);
         page.update(v);
         page.listener = this;
-        // CarPlay's own Radio app (the car's media source in LIVI's description): its play and source buttons
-        // open the head unit's radio, which takes the sound; the stations themselves aren't in CarPlay yet
-        if (screens.containsKey("open_radio")) {
-            VehicleState.mediaControls = new VehicleState.Controls() {
-                @Override
-                public void pressed(String name, Object value) {
-                    if ("play".equals(name) || "changeMediaSource".equals(name) || name.startsWith("tuneTo")) CarVehicle.this.pressed("open_radio");
-                }
-            };
-        }
         out.log("VEH page: " + screens.keySet() + (lights ? ", light switch" : ", no light app")
                 + (launchpad != null ? ", preconditioning through " + launchpad.getComponent().getPackageName() : ", no Launchpad"));
     }
@@ -242,6 +236,10 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
 
     @Override
     public void pressed(final String id) {
+        if ("open_radio".equals(id)) {
+            media.resume();
+            return;
+        }
         work.add(new Runnable() {
             @Override
             public void run() {

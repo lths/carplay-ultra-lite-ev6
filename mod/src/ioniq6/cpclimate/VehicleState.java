@@ -110,7 +110,7 @@ final class VehicleState {
         return followed.contains(historySlot(0) + 1) ? historyUpdate() : new ArrayList<Out>();
     }
 
-    /** the phone's media controls (play, pause, changeMediaSource, tuneTo...), for whoever runs the car's radio */
+    /** The phone's media controls, forwarded to the current CarPlay audio session. */
     interface Controls {
         void pressed(String name, Object value);
     }

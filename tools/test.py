@@ -37,13 +37,14 @@ def main():
         run("Native hooks", [native])
         classes = work / "classes"
         classes.mkdir()
-        names = ["Bplist", "ChaChaPoly", "ClimateMap", "Opack", "OpackCodec", "VehiclePage", "VehicleState", "VsChannel", "VsData", "CarApi"]
+        names = ["Bplist", "ChaChaPoly", "ClimateMap", "Opack", "OpackCodec", "VehiclePage", "VehicleState", "VsChannel", "VsData", "CarApi", "CarPlayMedia"]
         sources = [SRC / (name + ".java") for name in names]
-        tests = ["ClimateMapTest", "SessionPairTest", "CompatibilityTest"]
+        tests = ["ClimateMapTest", "SessionPairTest", "CompatibilityTest", "CarPlayMediaTest"]
         sources += [ROOT / "tests" / (name + ".java") for name in tests]
         sources += [ROOT / "check/src/ioniq6/cpclimate/check/Main.java", ROOT / "tests/CheckReportTest.java"]
         run("Compile host Java and checker", ["javac", "--release", "8", "-d", classes, *sources])
         run("Climate map", ["java", "-cp", classes, "ioniq6.cpclimate.ClimateMapTest"])
+        run("CarPlay audio resume", ["java", "-cp", classes, "ioniq6.cpclimate.CarPlayMediaTest"])
         run("Session pairing", ["java", "-cp", classes, "ioniq6.cpclimate.SessionPairTest", work])
         run("Compatibility verdicts", ["java", "-cp", classes, "ioniq6.cpclimate.check.CheckReportTest"])
 
