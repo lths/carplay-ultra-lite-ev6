@@ -6,7 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
 
-/** Exercise session timing and the real reflective receiver adapter without manufacturer files. */
+/** Connection must leave phone UI/audio alone; only explicit media buttons reach the receiver. */
 public final class CarPlayMediaTest {
     static int fails;
     static void check(String what, boolean ok) {
@@ -18,10 +18,9 @@ public final class CarPlayMediaTest {
 
     public static final class Receiver {
         final List<String> calls = new ArrayList<String>();
-        boolean failUI, failDown;
+        boolean failDown;
         public String requestUI(String url) {
             calls.add(url);
-            if (failUI) throw new IllegalStateException("test UI failure");
             return "Submitted";
         }
         public String onConsumer(Consumer button, boolean down) {
@@ -33,8 +32,12 @@ public final class CarPlayMediaTest {
 
     public enum ToggleOnly { PlayOrPause }
     public static final class UnsupportedReceiver {
-        public void requestUI(String url) { throw new AssertionError("must not send without explicit Play"); }
         public void onConsumer(ToggleOnly button, boolean down) { throw new AssertionError("must not toggle"); }
+    }
+
+    public static final class NoUiReceiver {
+        final List<String> calls = new ArrayList<String>();
+        public void onConsumer(Consumer button, boolean down) { calls.add(button.name() + (down ? " down" : " up")); }
     }
 
     static final class Timer implements CarPlayMedia.Later {
@@ -81,87 +84,78 @@ public final class CarPlayMediaTest {
 
     public static void main(String[] args) {
         Fixture f = new Fixture();
-        f.media.started(f.receiver, true);
-        f.media.started(f.receiver, true);
-        f.timer.advance(CarPlayMedia.CONNECT_DELAY_MS - 1);
-        check("connection waits for receiver startup", f.calls());
-        f.timer.advance(10000);
-        check("duplicate start callbacks send Now Playing and explicit Play exactly once",
-                f.calls("nowplaying:", "Play down", "Play up"));
+        f.media.started(f.receiver);
+        check("connection schedules no UI or audio actions", f.calls() && f.timer.work.isEmpty());
+        f.media.started(f.receiver);
         f.timer.advance(60000);
-        check("automatic resume has no repeated play loop", f.calls("nowplaying:", "Play down", "Play up"));
+        check("duplicate starts and elapsed startup time never request Now Playing or Play", f.calls() && f.timer.work.isEmpty());
+        f.media.ended(f.receiver);
+        f.media.started(f.receiver);
+        f.timer.advance(60000);
+        check("reconnection does not resume audio or navigate", f.calls() && f.timer.work.isEmpty());
+
+        for (String[] action : new String[][] { { "play", "Play" }, { "pause", "Pause" }, { "nextItem", "ScanNextTrack" }, { "previousItem", "ScanPreviousTrack" } }) {
+            f = new Fixture();
+            f.media.started(f.receiver);
+            f.media.pressed(action[0], null);
+            f.timer.advance(1000);
+            check("explicit " + action[0] + " sends a paired key without opening Now Playing", f.calls(action[1] + " down", action[1] + " up"));
+        }
+
+        for (String action : new String[] { "changeMediaSource", "tuneToIdentifier", "tuneToFrequency" }) {
+            f = new Fixture();
+            f.media.started(f.receiver);
+            f.media.pressed(action, VehicleState.dict("identifier", "FM"));
+            f.timer.advance(60000);
+            check("Radio " + action + " does not open Now Playing or start phone audio", f.calls() && f.timer.work.isEmpty());
+        }
 
         f = new Fixture();
-        f.media.started(f.receiver, false);
-        f.timer.advance(10000);
-        check("automatic resume setting off sends nothing", f.calls());
-        f.media.resume();
+        f.media.started(f.receiver);
+        f.media.pressed("play", null);
+        f.media.ended(f.receiver);
         f.timer.advance(1000);
-        check("manual shortcut still resumes with automatic resume off", f.calls("nowplaying:", "Play down", "Play up"));
+        check("disconnect cancels queued explicit button actions", f.calls());
 
         f = new Fixture();
-        f.media.started(f.receiver, true);
-        f.media.resume();
-        f.timer.advance(10000);
-        check("manual resume replaces pending automatic resume", f.calls("nowplaying:", "Play down", "Play up"));
+        f.media.started(f.receiver);
+        f.media.pressed("play", null);
+        f.timer.advance(0);
+        f.media.ended(f.receiver);
+        f.media.started(f.receiver);
+        f.timer.advance(1000);
+        check("old button release cannot enter a replacement session", f.calls("Play down"));
 
         f = new Fixture();
-        f.media.started(f.receiver, true);
+        Receiver old = new Receiver();
+        f.media.started(old);
+        f.media.started(f.receiver);
+        f.media.ended(old);
         f.media.pressed("pause", null);
-        f.timer.advance(10000);
-        check("manual pause cancels pending automatic play", f.calls("Pause down", "Pause up"));
-
-        f = new Fixture();
-        f.media.started(f.receiver, true);
         f.timer.advance(1000);
-        f.media.ended(f.receiver);
-        f.timer.advance(10000);
-        check("disconnect before resume cancels all commands", f.calls());
-        f.media.started(f.receiver, true);
-        f.timer.advance(10000);
-        check("a later connection to the same service gets its own single attempt", f.calls("nowplaying:", "Play down", "Play up"));
+        check("a stale disconnect cannot detach the new session", old.calls.isEmpty() && f.calls("Pause down", "Pause up"));
 
         f = new Fixture();
-        f.media.started(f.receiver, true);
-        f.timer.advance(CarPlayMedia.CONNECT_DELAY_MS);
-        f.media.ended(f.receiver);
+        f.media.started(new UnsupportedReceiver());
+        f.media.pressed("play", null);
         f.timer.advance(1000);
-        check("disconnect after opening Now Playing cancels delayed Play", f.calls("nowplaying:"));
+        boolean unavailable = false;
+        for (String line : f.logs) unavailable |= line.startsWith("MEDIA Play unavailable:");
+        check("missing explicit Play is reported without using a toggle", unavailable);
 
         f = new Fixture();
-        f.media.started(f.receiver, false);
-        f.media.resume();
-        f.timer.advance(CarPlayMedia.PLAY_DELAY_MS);
-        f.media.ended(f.receiver);
-        f.media.started(f.receiver, false);
+        NoUiReceiver noUi = new NoUiReceiver();
+        f.media.started(noUi);
+        f.media.pressed("play", null);
         f.timer.advance(1000);
-        check("old button release cannot enter a replacement session", f.calls("nowplaying:", "Play down"));
-
-        f = new Fixture();
-        f.media.started(new UnsupportedReceiver(), true);
-        f.timer.advance(10000);
-        check("toggle-only receiver is withheld and reported instead of risking Pause",
-                f.logs.size() == 1 && f.logs.get(0).startsWith("MEDIA resume unavailable:"));
-
-        f = new Fixture();
-        f.receiver.failUI = true;
-        f.media.started(f.receiver, true);
-        f.timer.advance(10000);
-        check("UI failure does not prevent the independent explicit Play request", f.calls("nowplaying:", "Play down", "Play up"));
+        check("manual media controls do not require a UI API", noUi.calls.equals(Arrays.asList("Play down", "Play up")));
 
         f = new Fixture();
         f.receiver.failDown = true;
-        f.media.started(f.receiver, true);
+        f.media.started(f.receiver);
+        f.media.pressed("play", null);
         f.timer.advance(60000);
-        check("a failed key press is released once without retries", f.calls("nowplaying:", "Play down", "Play up"));
-
-        for (String action : new String[] { "play", "changeMediaSource", "tuneToIdentifier", "tuneToFrequency" }) {
-            f = new Fixture();
-            f.media.started(f.receiver, false);
-            f.media.pressed(action, VehicleState.dict("identifier", "FM"));
-            f.timer.advance(1000);
-            check("Radio " + action + " requests phone Now Playing and Play", f.calls("nowplaying:", "Play down", "Play up"));
-        }
+        check("a failed manual key press is released once without retries", f.calls("Play down", "Play up"));
         if (fails != 0) throw new AssertionError(fails + " failed");
     }
 }

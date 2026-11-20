@@ -27,8 +27,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  *   have leaves its line at a dash. The charging and tyre status getters are read and logged only, until what
  *   their values mean has been seen on the car.
  * - Buttons that open a screen on the head unit: the car's home screen, the HMG-API app, NEMESIS Manager, the
- *   ambient light app, and the car's EV and vehicle settings screens. The legacy Radio shortcut instead
- *   resumes the current iPhone audio session through CarPlayMedia.
+ *   ambient light app, and the car's EV and vehicle settings screens.
  * - The ambient light effect's switch (Light Vibes): DiPO can't write another app's settings, so the request
  *   goes to a file that the mod's root service (svc/helper.sh) applies, and the state comes back the same way.
  * - Battery preconditioning's switch, through Launchpad (paytondev/gen5w-preconditioning): its own Start and Stop
@@ -46,8 +45,9 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     static final String LIGHTS_REQUEST = "cpc-lights-req", LIGHTS_STATE = "cpc-lights-state";
     static final String S_CAR = "Vehicle", S_LIGHTS = "Ambient light", S_OPEN = "Head unit";
     static final String S_COMFORT = "Comfort";
+    // Reserve the removed Radio/resume slot so subsequent readings and shortcuts keep their IIDs.
     static final String[] LEGACY_ROWS = { "open_home", "battery", "precondition", "range", "odometer", "lights",
-            "open_lights", "open_hmgapi", "open_nemesis", "open_radio", "open_ev", "open_vehicle_settings", "version" };
+            "open_lights", "open_hmgapi", "open_nemesis", null, "open_ev", "open_vehicle_settings", "version" };
     static final String[] COMFORT_ROWS = { "wheel_heat", "wheel_heat_status", "driver_seat_status", "driver_vent_low", "driver_vent_medium",
             "driver_vent_high", "driver_seat_off", "passenger_seat_status", "passenger_vent_low", "passenger_vent_medium",
             "passenger_vent_high", "passenger_seat_off" };
@@ -55,8 +55,6 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     static final String[][] SCREENS = {
             { "open_hmgapi", "HMG-API", "puzzlepiece.extension", "hmgapi.app/.MainActivity" },
             { "open_nemesis", "NEMESIS Manager", "shippingbox", "com.nemesis.manager/.MainActivity" },
-            // Keep the legacy identifier/IID while replacing the FM shortcut with phone audio.
-            { "open_radio", "Resume CarPlay audio", "play.circle" },
             { "open_ev", "EV", "bolt.car", "com.hkmc.daudio.app.ev3" },
             { "open_vehicle_settings", "Vehicle settings", "gearshape", "com.android.vehiclesettings" },
     };
@@ -78,7 +76,6 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     final VehicleState[] state;
     final VsChannel[] lanes;
     final VsChannel.Log out;
-    private final CarPlayMedia media;
     private final VideoContext video;
     final VehiclePage page = new VehiclePage();
     private final Map<String, Intent> screens = new LinkedHashMap<String, Intent>();
@@ -156,7 +153,8 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
         }
         page.pinSection(S_CAR, VehiclePage.BASE).pinSection(S_LIGHTS, VehiclePage.BASE + 16)
                 .pinSection(S_OPEN, VehiclePage.BASE + 32).pinSection(S_COMFORT, VehiclePage.BASE + 0x1000);
-        for (int i = 0; i < LEGACY_ROWS.length; i++) page.pinItem(LEGACY_ROWS[i], 20576L + 16L * i);
+        for (int i = 0; i < LEGACY_ROWS.length; i++)
+            if (LEGACY_ROWS[i] != null) page.pinItem(LEGACY_ROWS[i], 20576L + 16L * i);
         for (int i = 0; i < COMFORT_ROWS.length; i++) page.pinItem(COMFORT_ROWS[i], VehiclePage.BASE + 0x1100 + 16L * i);
         return page;
     }
@@ -177,14 +175,13 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
     }
 
     /** the car's section is named after the model the head unit reports */
-    CarVehicle(Context context, File dir, VehicleState[] state, VsChannel[] lanes, VsChannel.Log out, String version, CarPlayMedia media, VideoContext video) {
+    CarVehicle(Context context, File dir, VehicleState[] state, VsChannel[] lanes, VsChannel.Log out, String version, VideoContext video) {
         super("cp-climate-vehicle");
         this.context = context;
         this.dir = dir;
         this.state = state;
         this.lanes = lanes;
         this.out = out;
-        this.media = media;
         this.video = video;
         setDaemon(true);
         String product = "";
@@ -238,10 +235,6 @@ final class CarVehicle extends Thread implements VehiclePage.Listener {
 
     @Override
     public void pressed(final String id) {
-        if ("open_radio".equals(id)) {
-            media.resume();
-            return;
-        }
         work.add(new Runnable() {
             @Override
             public void run() {

@@ -92,15 +92,25 @@ public class VehiclePageTest {
         for (VehiclePage.Item item : complete.items())
             sameRows &= minimal.item(item.id) != null && minimal.item(item.id).iid == item.iid;
         check("missing optional apps never renumber Vehicle-page readings or actions", sameRows);
-        check("legacy battery, range, odometer and radio retain the native description's identities",
+        check("legacy readings and later shortcuts retain their identities after removing resume",
                 minimal.item("battery").valueIid() == 20595 && minimal.item("range").valueIid() == 20627
-                && minimal.item("odometer").valueIid() == 20643 && minimal.item("open_radio").valueIid() == 20723);
-        check("the legacy Radio shortcut is labelled for resuming phone audio",
-                "Resume CarPlay audio".equals(minimal.item("open_radio").label));
+                && minimal.item("odometer").valueIid() == 20643 && minimal.item("open_ev").valueIid() == 20739
+                && minimal.item("open_vehicle_settings").valueIid() == 20755 && minimal.item("version").valueIid() == 20771);
+        check("the resume shortcut is absent from both page variants",
+                minimal.item("open_radio") == null && complete.item("open_radio") == null);
         java.util.Set<Long> pinned = new java.util.HashSet<Long>();
         for (VehiclePage.Item item : complete.items()) pinned.add(item.iid);
         check("comfort rows have unique identities outside the legacy rows", pinned.size() == complete.items().size()
                 && complete.item("wheel_heat").iid >= VehiclePage.BASE + 0x1100);
+        VehicleState.page = complete;
+        VehicleState removed = session();
+        final int[] staleWrites = { 0 };
+        removed.car = new VehicleState.Car() { public void phoneWrote(Map<Long, Object> w, Map<Long, Object> n) { staleWrites[0]++; } };
+        List<VehicleState.Out> stale = removed.handle(0, ask("writeRequest", VehicleState.dict(20723L, "Run")));
+        check("a cached resume button is rejected without dispatching a car or media action",
+                VehicleState.NO_VALUE == (Long) ((Map<?, ?>) VehicleState.get(inner(stale.get(0)), "errors")).get(20723L)
+                && staleWrites[0] == 0 && !removed.values.containsKey(20723L)
+                && characteristic(accessory(removed, VehiclePage.ACCESSORY), 20723L) == null);
         // without a page: LIVI's two version lines, untouched
         VehicleState.page = null;
         Map<Object, Object> livi = accessory(session(), VehiclePage.ACCESSORY);

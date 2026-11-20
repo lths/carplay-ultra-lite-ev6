@@ -1,7 +1,7 @@
 # CarPlay Ultra-Lite for EV6
 
 Private development copy for a **2024 Kia EV6, Gen5W USA firmware 260507**. Current test version:
-**1.3.3-ev6.5**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
+**1.3.3-ev6.6**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
 Requires working wireless CarPlay, **HMG-API 1.1.0-rc.1 or later**, and the existing theme-enabled routing dependency.
 The owner uses iOS 27.2 and confirms **ventilation, wheel heat, range, odometer and battery percentage work**
 on ev6.2. The November 17 control trace also confirms passenger seat-heat OFF, wheel on/off, and low ventilation
@@ -10,6 +10,18 @@ see the [diagnostic finding and USB installation path](docs/PRECONDITIONING-DIAG
 
 GitHub's public-repository forks remain public, so this is an independent private repository retaining
 upstream history and an `upstream` remote. [UPSTREAM.md](UPSTREAM.md) preserves the original documentation.
+
+## Changes in ev6.6
+
+- Remove automatic last-audio resume, its setting and the **Resume CarPlay audio** shortcut after the owner
+  reported that it kept opening Now Playing. Existing saved resume settings are ignored.
+- Connection and reconnection send no UI or playback requests. Radio source/tuning commands no longer redirect
+  to phone audio. Explicit play/pause/next/previous buttons send their media keys without a screen request.
+- Reserve the removed shortcut's old IID, so later shortcuts and battery/range/odometer readings keep their IDs.
+  Both connection and runtime descriptions omit the removed action; cached writes to its old IID are rejected.
+
+Climate controls and optional parked video retain the ev6.5 behavior. Confirm the corrected connection behavior
+on the car after installing and restarting.
 
 ## Changes in ev6.5
 
@@ -27,7 +39,7 @@ Selected improvements from [joshuaauger v1.1.15](https://github.com/joshuaauger/
   Playback requires an active CarPlay session and fresh Park feedback; loss of either releases the player and hides
   its window. The phone supplies normal CarPlay audio. Protected FairPlay streams are unsupported.
 
-The new Climate widgets, phone audio acceptance and parked video still need on-car testing. The wheel widget may
+The new Climate widgets and parked video still need on-car testing. The wheel widget may
 overlap another Climate control in some iOS layouts; disable its native toggle and use **Vehicle → Comfort** if needed.
 Unreleased home tiles and the physical instrument cluster are not implemented. The fork's rear-seat, ambient-light,
 other-firmware and raw-video-recording experiments are omitted. See the [port audit](docs/JOSHUA-1.1.15-PORT.md).
@@ -46,7 +58,7 @@ other-firmware and raw-video-recording experiments are omitted. See the [port au
 These are diagnostic changes. They do not identify the old 73,861-byte packet's failure or repair spontaneous
 video freezes without a new on-car capture. Native changes only refresh the embedded version label.
 
-## Changes in ev6.3
+## Changes in ev6.3 (resume behavior removed in ev6.6)
 
 - Replace **Vehicle → Head unit → Radio** with **Resume CarPlay audio**, keeping its existing identifier and IID.
   The action requests the iPhone's **Now Playing** screen and sends an explicit **Play** press/release through
@@ -57,10 +69,8 @@ video freezes without a new on-car capture. Native changes only refresh the embe
 - Forward the existing media controls to CarPlay and include `MEDIA` diagnostics in the filtered USB export.
   No Play/Pause toggle fallback or retry loop is used: a resume request must not pause existing playback.
 
-**Audio resume is not yet tested on this EV6/iPhone.** A submitted receiver command does not prove playback.
-Some receiver/iOS combinations may ignore separate Play/Pause consumer keys; if that happens, collect the
-`MEDIA` lines rather than substituting an unattended toggle. Integrated CarPlay Radio still has no station backend.
-The new audio behavior does not change the ev6.2 climate mappings.
+The owner later reported unwanted Now Playing navigation, so ev6.6 removes resume and the Radio redirection.
+Integrated CarPlay Radio still has no station backend.
 
 ## Changes in ev6.2
 
@@ -84,9 +94,9 @@ No manufacturer binary is included; no other firmware recipe is imported.
 
 ## Install and test
 
-For the existing installation, use **`cp-climate-1.3.3-ev6.5-usb.zip`** from the private release.
+For the existing installation, use **`cp-climate-1.3.3-ev6.6-usb.zip`** from the private release.
 Keep the existing wireless and theme-enabled routing mods. See [installation and test steps](docs/INSTALL-EV6.md).
-The complete `carplay-ultra-lite-ev6-1.3.3-ev6.5-install-usb.zip` also carries the unchanged signed routing dependency
+The complete `carplay-ultra-lite-ev6-1.3.3-ev6.6-install-usb.zip` also carries the unchanged signed routing dependency
 and its source for an installation that needs it. The checker USB ZIP is optional for this car.
 
 The owner's evidence and unresolved issues are recorded in [EV6-VALIDATION.md](docs/EV6-VALIDATION.md).
@@ -98,7 +108,7 @@ The old checker also accepted invalid seat-state values, which is corrected here
 - Recirculation OFF is still unresolved: the phone correctly sends false, and the mod sends `vr(11, 2, 0)`,
   but the observed intake state stays on. Capture Kia touchscreen ON/OFF commands before changing that mapping.
 - CarPlay's integrated Radio backend is unimplemented; the DAB message does not establish a tuner fault.
-  The old Radio shortcut now requests the last CarPlay audio session. Use Kia's own menu for its FM radio.
+  Use Kia's own menu for its FM radio. The old Radio/resume shortcut is removed.
 - Visual freezing needs on-car diagnosis. A running discarded cluster stream does not prove the center video is healthy.
 - Themes do not replace the EV6 driver's instrument display; `ClusterSink` discards the separate Ultra cluster video.
 - Charging-method names do not establish units or callbacks. HMG-API's EV6 map identifies `getBatSoc()` as **12 V SOC**;
@@ -131,7 +141,7 @@ python3 tools/rebuild_segment.py --zig /path/to/zig
 python3 tools/test.py --android-jar /path/to/android.jar --sdk /path/to/hmgapi-sdk
 python3 tools/package.py mod --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
 python3 tools/package.py check --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
-python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.5.zip --sdk /path/to/hmgapi-sdk
+python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.6.zip --sdk /path/to/hmgapi-sdk
 ```
 
 `test.py` also uses Python `cryptography` for the independent encrypted transport test.

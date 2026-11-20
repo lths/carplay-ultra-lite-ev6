@@ -45,7 +45,7 @@ def main():
         sources += [ROOT / "check/src/ioniq6/cpclimate/check/Main.java", ROOT / "tests/CheckReportTest.java"]
         run("Compile host Java and checker", ["javac", "--release", "8", "-d", classes, *sources])
         run("Climate map", ["java", "-cp", classes, "ioniq6.cpclimate.ClimateMapTest"])
-        run("CarPlay audio resume", ["java", "-cp", classes, "ioniq6.cpclimate.CarPlayMediaTest"])
+        run("Passive connection and manual media controls", ["java", "-cp", classes, "ioniq6.cpclimate.CarPlayMediaTest"])
         run("OPACK diagnostics and route privacy", ["java", "-cp", classes, "ioniq6.cpclimate.DiagnosticsTest"])
         run("Video event context", ["java", "-cp", classes, "ioniq6.cpclimate.VideoContextTest"])
         run("Front comfort and full description", ["java", "-cp", classes, "ioniq6.cpclimate.ForkImprovementsTest"])

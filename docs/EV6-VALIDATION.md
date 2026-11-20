@@ -271,6 +271,19 @@ with one additional verify site and 14 bindings (47 total). It does not import t
 The new Climate UI, actual Park feedback, hardware decoding and phone playback/handoff remain **unverified on car**.
 The old rejected packet's exact payload remains unavailable, and spontaneous freezing has not been reproduced.
 
+## Remove last-audio resume, 2026-11-20 (ev6.6)
+
+The owner reports that the resume feature keeps opening Now Playing. ev6.6 removes its automatic connection
+action, setting and Vehicle shortcut. It also removes the Radio source/tuning fallback, which called the same
+resume path. The manual media-button adapter no longer resolves or calls `requestUI`; it only forwards explicit
+play/pause/next/previous controls. Existing saved resume settings cannot enable the removed path.
+
+The old shortcut's IID 20723 is reserved without a row, preserving all subsequent IDs. The complete connection
+description and live description both omit the action, and cached writes to that IID are rejected.
+Regression checks cover idle startup/reconnect and duplicate callbacks, zero scheduled connection actions,
+Radio commands with no navigation or playback, explicit paired media keys, pending-action disconnect behavior,
+stable later page IDs and rejected cached resume writes. Confirm the correction on the car after updating.
+
 ## Host validation of ev6.2
 
 - Native hook behavior, climate mapping, session pairing, firmware mismatch guards, Vehicle-page updates/actions,

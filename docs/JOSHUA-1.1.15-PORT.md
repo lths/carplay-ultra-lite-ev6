@@ -1,5 +1,8 @@
 # joshuaauger v1.1.15 port to EV6 ev6.5
 
+This records the ev6.5 import. In ev6.6, automatic audio resume, its setting/shortcut and Radio-to-phone-audio
+redirection are removed after the owner's unwanted Now Playing report. The rest of the port is retained.
+
 Source reviewed: [v1.1.15 release](https://github.com/joshuaauger/carplay-ultra-lite-gen5w/releases/tag/v1.1.15),
 tag commit `4f739c79c3d884f47f914468148213994d46ca46`. The implementation is under that tag's
 [`source/`](https://github.com/joshuaauger/carplay-ultra-lite-gen5w/tree/v1.1.15/source) directory.

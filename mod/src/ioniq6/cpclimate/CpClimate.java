@@ -33,7 +33,7 @@ public final class CpClimate extends ModEntry {
     /** left in DiPO's files folder at each CarPlay session when adb_keepalive is on; svc/helper.sh acts on it */
     static final String ADB_REQUEST = "cpc-adb-req";
     /** shown on the Vehicle page; keep in step with mod.json */
-    static final String VERSION = "1.3.3-ev6.5";
+    static final String VERSION = "1.3.3-ev6.6";
     static final String GUARD_FILE = "cp-climate-guard";
     static final int GUARD_STARTS = 2;
     static final long GUARD_MS = 10 * 60 * 1000L;
@@ -135,7 +135,7 @@ public final class CpClimate extends ModEntry {
                 VehiclePage.tiles = "off";
                 CarVehicle.driveLog = m.settingBoolean("drive_log", false);
                 try {
-                    CarVehicle vehicle = new CarVehicle(app.context, dir, state, lanes, log, VERSION, media, video);
+                    CarVehicle vehicle = new CarVehicle(app.context, dir, state, lanes, log, VERSION, video);
                     VehicleState.page = vehicle.page;
                     vehicle.start();
                 } catch (Throwable t) {
@@ -197,7 +197,7 @@ public final class CpClimate extends ModEntry {
                 video.session(true);
                 if (ParkedVideo.instance != null) ParkedVideo.instance.session = true;
                 if (VideoUi.enabled) VideoUi.install(p.thisObject, p.thisObject.getClass().getClassLoader());
-                if (media != null) media.started(p.thisObject, mod.settingBoolean("resume_carplay_audio", true));
+                if (media != null) media.started(p.thisObject);
                 copyLater(COPY_DELAY_MS, false);
                 // test aid (setting adb_keepalive): CarPlay connecting takes the USB port from adb; the root
                 // service (svc/helper.sh) switches it back a few seconds after this request

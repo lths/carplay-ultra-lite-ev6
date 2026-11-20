@@ -1,13 +1,13 @@
 {
   "id": "cp-climate",
   "name": "CarPlay Ultra-Lite",
-  "version": "1.3.3-ev6.5",
+  "version": "1.3.3-ev6.6",
   "hmgapi": ">=1.1.0-rc.1",
   "authors": [
     "cp-climate contributors"
   ],
   "license": "GPL-3.0-or-later",
-  "description": "EV6 USA 260507 port of selected joshuaauger v1.1.15 improvements: compact OPACK -1, no forced DAB source, complete matching cached vehicle descriptions, native Climate ventilation/wheel widgets, and remembered setpoints while climate is off. Includes optional AirPlay video with upstream controls, stream recovery and sync; off by default and requires fresh Park feedback. Retains EV6 BCM feedback, direct wheel command, page IDs, volume, audio resume and filtered diagnostics. New widgets and video require on-car validation. Based on CarPlay Ultra-Lite and LIVI (GPL-3.0).",
+  "description": "EV6 USA 260507 build with automatic audio resume and its shortcut removed: connection no longer requests Now Playing or Play. Retains native Climate ventilation/wheel controls, compact OPACK -1, matching cached vehicle descriptions, EV6 BCM feedback and filtered diagnostics. Optional AirPlay video remains off by default and requires fresh Park feedback. New widgets and video require on-car validation. Based on CarPlay Ultra-Lite and LIVI (GPL-3.0).",
   "requires": [
     "wireless-carplay-aa"
   ],
