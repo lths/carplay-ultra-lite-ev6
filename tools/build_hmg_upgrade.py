@@ -72,7 +72,8 @@ def main():
         logs = contents / "03-update-carplay/CarPlayUltraLite-Logs"
         logs.mkdir()
         (logs / "README.txt").write_text("Filtered EV6 climate/charging/video diagnostics export here while this folder is on the USB root.\n")
-        for source, target in (("docs/HMG-RC7-UPGRADE.md", "README.md"), ("docs/INSTALL-EV6.md", "INSTALL-EV6.md"),
+        for source, target in (("docs/HMG-RC7-UPGRADE.md", "README.md"), ("docs/HMG-RC7-UPGRADE.md", "HMG-RC7-UPGRADE.md"),
+                               ("docs/INSTALL-EV6.md", "INSTALL-EV6.md"),
                                ("docs/EV6-CONTROLS-CHECKLIST.md", "EV6-CONTROLS-CHECKLIST.md"), ("LICENSE", "LICENSE"), ("NOTICE", "NOTICE")):
             shutil.copy2(ROOT / source, contents / target)
         (contents / "SOURCES.txt").write_text("Official unmodified update packages:\nhttps://github.com/Open-HMG/HMG-API/tree/v1.1.0-rc.7\n"
