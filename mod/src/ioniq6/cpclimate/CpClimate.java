@@ -33,7 +33,7 @@ public final class CpClimate extends ModEntry {
     /** left in DiPO's files folder at each CarPlay session when adb_keepalive is on; svc/helper.sh acts on it */
     static final String ADB_REQUEST = "cpc-adb-req";
     /** shown on the Vehicle page; keep in step with mod.json */
-    static final String VERSION = "1.3.3-ev6.7";
+    static final String VERSION = "1.3.3-ev6.8";
     static final String GUARD_FILE = "cp-climate-guard";
     static final int GUARD_STARTS = 2;
     static final long GUARD_MS = 10 * 60 * 1000L;
@@ -54,16 +54,18 @@ public final class CpClimate extends ModEntry {
 
     /**
      * In the zygote. Only with the experiment on at start (setting carplay_volume_slider): a hook on the car's
-     * key entry in system_server (VolumeKeys). Passive stock-climate tracing, when enabled, is installed
-     * separately in matching app processes by appLoaded.
+     * key entry in system_server (VolumeKeys). Passive intake proxy hooks are inherited by apps and activated
+     * only in stock app processes; their local handoff never writes another app's private files.
      */
     @Override
     public void zygoteInit(ModContext m) {
+        IntakeLearning.zygote(m);
         if (m.settingBoolean("carplay_volume_slider", false)) VolumeKeys.zygote(m);
     }
 
     @Override
     public void appLoaded(ModContext m, LoadedApp app) {
+        IntakeLearning.appLoaded(m, app);
         StockTrace.install(m, app);
         if (!DIPO.equals(app.packageName)) return;
         mod = m;
@@ -153,7 +155,7 @@ public final class CpClimate extends ModEntry {
             for (VsChannel ch : lanes) ch.start();
             // M4: the car's climate on CarPlay both ways (CarClimate reads it and sends the phone's changes)
             CarClimate.rearDefrost = m.settingBoolean("rear_defrost", true);
-            CarClimate car = new CarClimate(state, lanes, log, dir);
+            CarClimate car = new CarClimate(state, lanes, log, dir, app.context);
             VsChannel.car = car;
             car.start();
             if (m.settingBoolean("volume_link", true)) {

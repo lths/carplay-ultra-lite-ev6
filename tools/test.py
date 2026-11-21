@@ -38,14 +38,15 @@ def main():
         run("Native hooks", [native])
         classes = work / "classes"
         classes.mkdir()
-        names = ["Bplist", "ChaChaPoly", "ClimateMap", "Opack", "OpackCodec", "OpackSummary", "VehiclePage", "VehicleDescription", "VehicleState", "VsChannel", "VsData", "CarApi", "CarPlayMedia", "VideoContext", "ParkedState", "VideoStreamSink", "ChargingData", "VehicleEvents", "FreshAirProfile"]
+        names = ["Bplist", "ChaChaPoly", "ClimateMap", "Opack", "OpackCodec", "OpackSummary", "VehiclePage", "VehicleDescription", "VehicleState", "VsChannel", "VsData", "CarApi", "CarPlayMedia", "VideoContext", "ParkedState", "VideoStreamSink", "ChargingData", "VehicleEvents", "FreshAirProfile", "IntakeProtocol", "IntakeTrainer"]
         sources = [SRC / (name + ".java") for name in names]
-        tests = ["ClimateMapTest", "SessionPairTest", "CompatibilityTest", "CarPlayMediaTest", "DiagnosticsTest", "VideoContextTest", "VsChannelTest", "ForkImprovementsTest", "ParkedStateTest", "VideoStreamSinkTest", "EnergyAndIntakeTest"]
+        tests = ["ClimateMapTest", "SessionPairTest", "CompatibilityTest", "CarPlayMediaTest", "DiagnosticsTest", "VideoContextTest", "VsChannelTest", "ForkImprovementsTest", "ParkedStateTest", "VideoStreamSinkTest", "EnergyAndIntakeTest", "IntakeLearningTest"]
         sources += [ROOT / "tests" / (name + ".java") for name in tests]
         sources += [ROOT / "check/src/ioniq6/cpclimate/check/Main.java", ROOT / "tests/CheckReportTest.java"]
         run("Compile host Java and checker", ["javac", "--release", "8", "-d", classes, *sources])
         run("Climate map", ["java", "-cp", classes, "ioniq6.cpclimate.ClimateMapTest"])
         run("Charging, real events and learned fresh-air profiles", ["java", "-cp", classes, "ioniq6.cpclimate.EnergyAndIntakeTest", work])
+        run("Stock intake handoff and cross-client learning", ["java", "-cp", classes, "ioniq6.cpclimate.IntakeLearningTest", work])
         run("Passive connection and manual media controls", ["java", "-cp", classes, "ioniq6.cpclimate.CarPlayMediaTest"])
         run("OPACK diagnostics and route privacy", ["java", "-cp", classes, "ioniq6.cpclimate.DiagnosticsTest"])
         run("Video event context", ["java", "-cp", classes, "ioniq6.cpclimate.VideoContextTest"])

@@ -15,7 +15,7 @@ This list separates implemented functions from remaining work; it does not adver
 | Face, bi-level, floor, windshield/defrost | Existing mapped vent and defrost controls. Any additional combined floor/defrost enum still needs stock-command evidence. |
 | Front defrost / maximum defrost, rear defrost | Existing native controls; rear defrost requires READY and verified body-listener feedback. |
 | Maximum A/C | Existing ON action combines A/C, recirculation and fan. A separate reversible OEM maximum-A/C mode has not been established. |
-| Recirculation / fresh air | ev6.7 routes fresh-air requests through a command learned from a confirmed stock touchscreen ON→OFF transition. Learning and replay need an on-car check. |
+| Recirculation / fresh air | ev6.8 corrects ev6.7's unsuccessful learning path with a local handoff and CarPlay-owned persistence. Unknown front selectors require confirmed stock ON/OFF calls using the same selector. Learning and replay need an on-car check. |
 | Front seat heat / ventilation, wheel heat | Existing native/Comfort controls, preserving the owner's confirmed commands and feedback guards. |
 | Volume up/down/mute | Existing CarPlay volume integration and manual media buttons; automatic audio resume remains removed. |
 | Battery preconditioning | Existing Launchpad integration. The last checked unit lacked the app; the new Charging page separately reports the real conditioning indicator. |
@@ -43,8 +43,9 @@ The private source adds no custom CAN frames and does not use the HMG vehicle-li
 
 ## Next owner test
 
-1. Connect CarPlay, open Kia's **touchscreen** climate page, turn recirculation ON, wait two seconds, then OFF.
-   Wait two seconds. **Vehicle → Comfort → Fresh-air control** should show **Kia command learned**.
+1. Connect CarPlay, open Kia's **touchscreen** climate page, ensure recirculation is **OFF**, wait three seconds,
+   turn it **ON**, wait three seconds, then **OFF** and wait three seconds.
+   **Vehicle → Comfort → Fresh-air control** should show **Kia command learned**.
 2. Turn recirculation on, then request fresh air in CarPlay. Confirm Kia's state changes. Physical buttons alone
    may bypass the observed Java command and cannot be relied on for training.
 3. While actually charging, compare the new Charging page with Kia's EV page. Capture the filtered USB log if

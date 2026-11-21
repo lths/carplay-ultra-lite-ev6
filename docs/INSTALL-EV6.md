@@ -1,8 +1,10 @@
-# EV6 ev6.7 update and test
+# EV6 ev6.8 update and test
 
-For the owner's existing installation, use **cp-climate-1.3.3-ev6.7-usb.zip**.
-This update adds learned fresh-air control, a unit-aware Charging section, real vehicle notifications and
-Park-only charge-port requests. Automatic audio resume remains removed. The feature coverage and remaining
+For the owner's existing installation, use **cp-climate-1.3.3-ev6.8-usb.zip**.
+This update corrects the fresh-air learning path that did not save a profile in ev6.7. Kia's app hands the
+observed command to CarPlay, which confirms the state change and saves in its own files. It can learn an
+unnamed front selector from a confirmed ON/OFF pair. Charging information, real vehicle notifications and
+Park-only charge-port requests are retained. Automatic audio resume remains removed. The feature coverage and remaining
 prerequisites from the owner's photo are in [EV6-CONTROLS-CHECKLIST.md](EV6-CONTROLS-CHECKLIST.md).
 
 To also update HMG-API/Wireless, use the separate staged **hmg-rc7-upgrade-usb.zip** and follow
@@ -13,14 +15,14 @@ theme-enabled routing mod is installed: those two serializers otherwise patch th
 
 1. Confirm HMG-API is **1.1.0-rc.1 or later**. The new video observer hooks require that version.
 2. Unzip the update USB ZIP. Copy **HMGAPI** and **CarPlayUltraLite-Logs** to the USB stick root.
-3. In HMG-API, select **Check USB updates**, install **CarPlay Ultra-Lite 1.3.3-ev6.7**, apply and restart the unit.
+3. In HMG-API, select **Check USB updates**, install **CarPlay Ultra-Lite 1.3.3-ev6.8**, apply and restart the unit.
    Keep the working official wireless mod and the existing theme-enabled routing mod enabled.
 4. Keep **CarPlay Ultra** on in this mod and the matching **CarPlay theme** on in the routing mod.
 5. Reconnect CarPlay. Remove the installation USB stick while establishing wireless CarPlay.
    If the Vehicle page still shows **Radio** or **Resume CarPlay audio**, or the Climate controls remain absent, forget the car on both the head unit and the iPhone
    (**Settings → General → CarPlay**, plus Bluetooth), then pair again to refresh the cached page description.
    The removed shortcut's old identifier is reserved and has no action in this build.
-6. Check the version under CarPlay's **Vehicle → Head unit** section: **1.3.3-ev6.7**.
+6. Check the version under CarPlay's **Vehicle → Head unit** section: **1.3.3-ev6.8**.
 
 **Seat ventilation in the Climate app** and **Steering wheel heat in the Climate app** default on in HMG-API → Mods → CarPlay Ultra-Lite → Settings.
 If the wheel widget obscures another button in your iOS Climate layout, switch **Steering wheel heat in the Climate app** off,
@@ -33,11 +35,15 @@ be updated with this key; it must be removed before installing this fork.
 
 ## Test while parked
 
-1. With CarPlay connected, open Kia's **touchscreen** climate page. Turn recirculation ON, wait two seconds,
-   then OFF, and wait two seconds. Return to CarPlay → Vehicle → Comfort. **Fresh-air control** should say
+1. With CarPlay connected, open Kia's **touchscreen** climate page. Ensure recirculation is **OFF** (fresh air),
+   wait **three seconds**, turn it **ON**, wait **three seconds**, then **OFF** and wait **three seconds**.
+   Return to CarPlay → Vehicle → Comfort. **Fresh-air control** should say
    **Kia command learned**. Physical buttons may bypass the Java calls, so use the touchscreen for learning.
+   The initial OFF establishes a fresh-air baseline before the ON/OFF pair; readings alone do not authorize a command.
+   If it instead says **Kia state changed; command not captured**, export the USB diagnostic log. Repeating the
+   same cycle alone will not repair a missing hook. Candidate, handoff and confirmation failures now have separate logs.
 2. Turn recirculation on, then turn it off in CarPlay or tap **Use fresh outside air**. Check Kia's actual state.
-   The captured command must reproduce two fresh-air readings within 1.6 seconds. A failure invalidates the
+   The captured command must reproduce two fresh-air readings within four seconds. A failure invalidates the
    profile, posts a notification and requires another learning cycle; no alternate enums are tried.
 3. Open **Vehicle → Charging** while plugged in and actually charging. Check battery/range and conditioning.
    Charging state/connection require a real typed value or an unambiguous OEM enum. If unknown, they stay unavailable.
@@ -124,7 +130,7 @@ to the 12 V battery and is not used for traction-battery percentage.
 ## Complete install bundle
 
 For an installation missing the theme dependency, the alternative
-**carplay-ultra-lite-ev6-1.3.3-ev6.7-install-usb.zip** contains the private mod and the original signed
+**carplay-ultra-lite-ev6-1.3.3-ev6.8-install-usb.zip** contains the private mod and the original signed
 **E-GMP CarPlay EV Routing 0.4.3-ioniq6.15**, plus that routing build's source and notices.
 Install routing first, then CarPlay Ultra-Lite. Its Ioniq 6 suffix also lists EV6 USA 260507 in its signed profiles.
 Routing author UUID: `4bec7579-9d68-8e3c-b667-2804d05a20b9`.

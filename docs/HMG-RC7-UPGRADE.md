@@ -1,8 +1,8 @@
-# EV6 update: HMG-API rc.7, Wireless rc.8 and CarPlay Ultra-Lite ev6.7
+# EV6 update: HMG-API rc.7, Wireless rc.8 and CarPlay Ultra-Lite ev6.8
 
 This staged bundle is for the owner's **existing CVEV USA 260507 installation**. It carries unmodified official
 HMG-API **1.1.0-rc.7**, Wireless CarPlay + Android Auto **2.2.0-rc.8**, optional ADB **1.0.1-rc.1**, and the private
-CarPlay Ultra-Lite **1.3.3-ev6.7** update. The official packages remain signed by their original authors; the private
+CarPlay Ultra-Lite **1.3.3-ev6.8** update. The official packages remain signed by their original authors; the private
 mod retains its existing key. This has been checked off-car; the official core/wireless versions are release candidates.
 
 ## Compatibility setting that is required with the current routing mod
@@ -29,7 +29,7 @@ the USB's HMGAPI/updates folder before copying the next stage; this only removes
    then Apply changes and restart. Remove the stick and verify ordinary wireless CarPlay for at least 60 seconds
    before the next stage.
    If HMG-API reports an author mismatch, keep the current wireless mod and resolve that mismatch before replacing it.
-3. **03-update-carplay:** install **1.3.3-ev6.7**, Apply changes and restart. Copy its CarPlayUltraLite-Logs folder too.
+3. **03-update-carplay:** install **1.3.3-ev6.8**, Apply changes and restart. Copy its CarPlayUltraLite-Logs folder too.
    Keep the existing themed-routing mod enabled. Follow INSTALL-EV6.md for fresh-air learning and charging checks.
 4. **optional-adb-update:** only needed if the ADB mod is older than 1.0.1-rc.1. Installing its update does not require
    enabling debugging or changing the computer's network. Existing ADB settings are retained.

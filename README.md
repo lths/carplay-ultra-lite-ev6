@@ -1,7 +1,7 @@
 # CarPlay Ultra-Lite for EV6
 
 Private development copy for a **2024 Kia EV6, Gen5W USA firmware 260507**. Current test version:
-**1.3.3-ev6.7**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
+**1.3.3-ev6.8**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
 Requires working wireless CarPlay, **HMG-API 1.1.0-rc.1 or later**, and the existing theme-enabled routing dependency.
 The owner uses iOS 27.2 and confirms **ventilation, wheel heat, range, odometer and battery percentage work**
 on ev6.2. The November 17 control trace also confirms passenger seat-heat OFF, wheel on/off, and low ventilation
@@ -10,6 +10,27 @@ see the [diagnostic finding and USB installation path](docs/PRECONDITIONING-DIAG
 
 GitHub's public-repository forks remain public, so this is an independent private repository retaining
 upstream history and an `upstream` remote. [UPSTREAM.md](UPSTREAM.md) preserves the original documentation.
+
+## Changes in ev6.8
+
+The owner confirmed ev6.7 reads Kia's recirculation ON/OFF correctly but never shows a learned command.
+ev6.8 corrects the capture path: stock apps send a fixed-size, credential-checked local handoff; DiPO reads
+the live state and saves in its own private files. Framework proxy observers are installed before apps start,
+with an app-loader fallback. Both DATC setter paths are observed even without a named front intake alias.
+An unnamed front selector requires confirmed ON and OFF calls on the same selector with distinct values;
+readings alone cannot create a replayable command. A newer candidate invalidates an older pending confirmation.
+
+In Kia's touchscreen climate screen, **ensure recirculation is OFF, then turn it ON, then OFF**, waiting
+**three seconds at each step**, with CarPlay connected. Vehicle → Comfort → Fresh-air control shows progress
+or a specific capture/confirmation failure. **Kia command learned** still requires an actual saved profile.
+Replay confirms fresh-air feedback for up to four seconds and deletes an unconfirmed profile without retries.
+Host checks cover packet/peer boundaries, paired selectors, cross-client supersession, timeouts and persistence.
+The new Android local-socket path and the resulting command still need an owner test; no ADB device is connected.
+
+This is a private-mod update. The existing HMG rc.7/Wireless rc.8 versions need no reinstall if already present.
+Charging, notifications, Park-only charge-port controls and the removed audio-resume behavior are retained.
+The video player is unchanged: the Crunchyroll photo shows an item without an accepted HTTP(S) content location,
+not proof of a decoder or DRM failure. This release does not claim Crunchyroll compatibility.
 
 ## Changes in ev6.7
 
@@ -117,9 +138,9 @@ No manufacturer binary is included; no other firmware recipe is imported.
 
 ## Install and test
 
-For the existing installation, use **`cp-climate-1.3.3-ev6.7-usb.zip`** from the private release.
+For the existing installation, use **`cp-climate-1.3.3-ev6.8-usb.zip`** from the private release.
 Keep the existing wireless and theme-enabled routing mods. See [installation and test steps](docs/INSTALL-EV6.md).
-The complete `carplay-ultra-lite-ev6-1.3.3-ev6.7-install-usb.zip` also carries the unchanged signed routing dependency
+The complete `carplay-ultra-lite-ev6-1.3.3-ev6.8-install-usb.zip` also carries the unchanged signed routing dependency
 and its source for an installation that needs it. The checker USB ZIP is optional for this car.
 
 The owner's evidence and unresolved issues are recorded in [EV6-VALIDATION.md](docs/EV6-VALIDATION.md).
@@ -129,8 +150,8 @@ The old checker also accepted invalid seat-state values, which is corrected here
 ## Current limits
 
 - The old recirculation OFF command `vr(11, 2, 0)` left the observed intake state on.
-  ev6.7 replaces that path with passive stock-command learning;
-  the learned command and subsequent fresh-air operation still need an on-car check.
+  ev6.7's learning prompt did not advance on the owner's unit. ev6.8 corrects the capture and persistence path;
+  successful learning and subsequent fresh-air operation still need an on-car check.
 - CarPlay's integrated Radio backend is unimplemented; the DAB message does not establish a tuner fault.
   Use Kia's own menu for its FM radio. The old Radio/resume shortcut is removed.
 - Visual freezing needs on-car diagnosis. A running discarded cluster stream does not prove the center video is healthy.
@@ -166,8 +187,8 @@ python3 tools/rebuild_segment.py --zig /path/to/zig
 python3 tools/test.py --android-jar /path/to/android.jar --sdk /path/to/hmgapi-sdk
 python3 tools/package.py mod --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
 python3 tools/package.py check --d8-jar /path/to/r8.jar --sdk /path/to/hmgapi-sdk --android-jar /path/to/android.jar
-python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.7.zip --sdk /path/to/hmgapi-sdk
-python3 tools/build_hmg_upgrade.py --assets /path/to/verified-rc7-assets --mod-package out/mod/cp-climate-1.3.3-ev6.7.zip --sdk /path/to/rc7-sdk
+python3 tools/bundle.py --upstream-bundle /path/to/carplay-ultra-lite-bundle-1.0.0.zip --mod-package out/mod/cp-climate-1.3.3-ev6.8.zip --sdk /path/to/hmgapi-sdk
+python3 tools/build_hmg_upgrade.py --assets /path/to/verified-rc7-assets --mod-package out/mod/cp-climate-1.3.3-ev6.8.zip --sdk /path/to/rc7-sdk
 ```
 
 `test.py` also uses Python `cryptography` for the independent encrypted transport test.

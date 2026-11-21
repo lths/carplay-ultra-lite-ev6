@@ -284,6 +284,39 @@ Regression checks cover idle startup/reconnect and duplicate callbacks, zero sch
 Radio commands with no navigation or playback, explicit paired media keys, pending-action disconnect behavior,
 stable later page IDs and rejected cached resume writes. Confirm the correction on the car after updating.
 
+## Fresh-air learning correction, 2026-11-21 (ev6.8)
+
+The owner reports Vehicle → Head unit shows 1.3.3-ev6.7, but Fresh-air control remains at the learning prompt
+after operating Kia's touchscreen. The supplied photo shows intake 1 then 2 and `recirculationOn` true then false.
+This confirms stock operation and readback, not capture, persistence or a successful CarPlay OFF request.
+
+Two weaknesses were found in the ev6.7 implementation: it omitted the front setter when none of three enum
+aliases resolved, and its stock-app observer attempted to read vehicle feedback and write DiPO's private files
+from the client process. The exact on-car failure point is not available from these cropped photos.
+
+ev6.8 observes both typed DATC proxy setters before app startup and retries the app's loader at appLoaded.
+Observers are active only in verified system/platform-signed app processes and while the mod is enabled;
+activation no longer depends on a package-name substring. DiPO's own process is excluded. A fixed 20-byte local
+socket handoff, with peer UID/PID checks and system-app/platform-signature checks for different-UID stock apps, sends the
+observed arguments to DiPO. It supplies no filenames or arbitrary serialized objects. DiPO obtains the baseline
+before the stock call runs; only a successful completed call enters confirmation. It owns feedback reads and
+atomic profile persistence. Socket reads use a 500 ms deadline; failure never replaces or skips the stock call.
+
+A front selector without a known name requires confirmed fresh→recirculating and recirculating→fresh transitions,
+using the same selector with distinct observed values, within 30 seconds. Paired profiles retain both values and
+the exact firmware product. Named-selector contradictions, stale/failed/superseded candidates and the known VR
+ON command cannot train OFF. Confirmation and replay allow up to four seconds with two stable feedback reads.
+The setup row distinguishes unseen commands, incomplete pairs, confirmation failures and save failures.
+No new listener ABI, guessed control payload, vehicle-state notification or media-resume action is introduced.
+
+Host regression checks cover packet bounds, peer admission, paired selectors, cross-client attribution, timeout,
+legacy invalidation and owner persistence. The exact known ON tuple is `(11, 1, 0)`; the guard no longer rejects
+every distinct observed VR tuple whose second argument happens to be 1. No such alternative is sent to discover it.
+The Android socket transport and the resulting learned command still
+require the owner test; ADB again reports no connected device. Charging, seats, wheel, native bindings and optional
+video behavior retain ev6.7 behavior. The Crunchyroll screenshot's missing HTTP(S) item location does not establish
+a decoder or DRM failure; no Crunchyroll compatibility is claimed by this correction.
+
 ## Fresh air, charging, notifications and HMG update, 2026-11-20 (ev6.7)
 
 The requested features are implemented with conservative unknown-data handling:

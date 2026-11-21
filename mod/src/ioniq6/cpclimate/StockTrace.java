@@ -16,7 +16,6 @@ final class StockTrace {
         if (!(pkg.startsWith("com.hkmc.") || pkg.startsWith("com.daudio.") || pkg.contains("climate")
                 || pkg.contains("vehiclesettings"))) return;
         installed = true;
-        IntakeLearning.install(mod, app);
         if (!mod.settingBoolean("trace_stock_climate", true)) return;
         trace(mod, app, CarApi.DATC, "setVRClimateStatus", 3);
         trace(mod, app, CarApi.DATC, "setFrontClimateControl", 2);
