@@ -1,6 +1,6 @@
 # CarPlay Ultra-Lite for EV6
 
-Private development copy for a **2024 Kia EV6, Gen5W USA firmware 260507**. Current test version:
+Development port for a **2024 Kia EV6, Gen5W USA firmware 260507**. Current test version:
 **1.3.3-ev6.8**. Based on [SafariForest's CarPlay Ultra-Lite 1.3.3](https://github.com/SafariForest/carplay-ultra-lite-gen5w/releases/tag/v1.3.3-test).
 Requires working wireless CarPlay, **HMG-API 1.1.0-rc.1 or later**, and the existing theme-enabled routing dependency.
 The owner uses iOS 27.2 and confirms **ventilation, wheel heat, range, odometer and battery percentage work**
@@ -8,8 +8,8 @@ on ev6.2. The November 17 control trace also confirms passenger seat-heat OFF, w
 on/off for both front seats through vehicle feedback. Battery preconditioning was traced to the separate Launchpad / Precondition app being absent;
 see the [diagnostic finding and USB installation path](docs/PRECONDITIONING-DIAGNOSTICS.md).
 
-GitHub's public-repository forks remain public, so this is an independent private repository retaining
-upstream history and an `upstream` remote. [UPSTREAM.md](UPSTREAM.md) preserves the original documentation.
+This independently hosted repository retains upstream history and an `upstream` remote.
+[UPSTREAM.md](UPSTREAM.md) preserves the original documentation.
 
 ## Changes in ev6.8
 
@@ -138,7 +138,7 @@ No manufacturer binary is included; no other firmware recipe is imported.
 
 ## Install and test
 
-For the existing installation, use **`cp-climate-1.3.3-ev6.8-usb.zip`** from the private release.
+For the existing installation, use **`cp-climate-1.3.3-ev6.8-usb.zip`** from the GitHub release.
 Keep the existing wireless and theme-enabled routing mods. See [installation and test steps](docs/INSTALL-EV6.md).
 The complete `carplay-ultra-lite-ev6-1.3.3-ev6.8-install-usb.zip` also carries the unchanged signed routing dependency
 and its source for an installation that needs it. The checker USB ZIP is optional for this car.
